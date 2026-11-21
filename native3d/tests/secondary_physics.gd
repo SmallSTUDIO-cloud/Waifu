@@ -90,13 +90,13 @@ func run_test() -> void:
             return
     sim.set_quality(2)
     # Synthetic known geometry: rotating the cloth tip by 45 degrees would
-    # enter a vertical capsule at (sqrt(.5), sqrt(.5)); it must be limited.
+    # enter a vertical capsule at (sqrt(.5), -sqrt(.5)); it must be limited.
     var rig = Skeleton3D.new()
     root.add_child(rig)
     for name in ["root", "J_Sec_L_SkirtSide0", "J_Sec_L_SkirtSide0_end", "J_Bip_L_UpperLeg", "J_Bip_L_LowerLeg"]: rig.add_bone(name)
     rig.set_bone_parent(1, 0); rig.set_bone_parent(2, 1); rig.set_bone_parent(3, 0); rig.set_bone_parent(4, 3)
     rig.set_bone_rest(2, Transform3D(Basis.IDENTITY, Vector3(1, 0, 0)))
-    rig.set_bone_rest(3, Transform3D(Basis.IDENTITY, Vector3(sqrt(0.5), sqrt(0.5), -0.5)))
+    rig.set_bone_rest(3, Transform3D(Basis.IDENTITY, Vector3(sqrt(0.5), -sqrt(0.5), -0.5)))
     rig.set_bone_rest(4, Transform3D(Basis.IDENTITY, Vector3(0, 0, 1)))
     rig.reset_bone_poses()
     var probe = load("res://scripts/secondary_motion.gd").new()
@@ -108,7 +108,6 @@ func run_test() -> void:
     var tip = probe._tip_position(cloth, constrained, rig.get_bone_global_pose(0))
     var a = rig.get_bone_global_pose(3).origin
     var b = rig.get_bone_global_pose(4).origin
-    print("Collision probe: tip=", tip, " segment=", a, "/", b, " distance=", probe._segment_distance(tip, a, b), " dot=", constrained.dot(desired), " pose child=", rig.get_bone_pose_position(2), " pairs=", probe.leg_pairs)
     if probe._segment_distance(tip, a, b) < probe.LEG_RADIUS - 0.001 or absf(constrained.dot(desired)) > 0.99999:
         fail("skirt tip was not constrained against leg proxy")
         return
