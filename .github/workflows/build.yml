@@ -44,7 +44,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.1.1-android scarlet-veil-android-test.apk \
+          gh release create v0.2.0-android scarlet-veil-android-test.apk \
             --target "$GITHUB_SHA" --prerelease \
-            --title 'Scarlet Veil v0.1.1 — Android Test' \
-            --notes 'Android test APK for the 2D Scarlet Veil combat prototype. This is an offline WebView wrapper around the prototype, not a native 3D game. It is debug-signed for testing, not for Play Store distribution; Android 6.0 or newer is required. The build has not been tested on a physical device. See the repository README for installation and limitations.'
+            --title 'Scarlet Veil v0.2.0 — Android Test' \
+            --notes 'Android test APK for the improved 2D Scarlet Veil combat slice with loading, briefing, settings and local records. This is an offline WebView wrapper around the prototype, not a native 3D game. It is debug-signed for testing, not for Play Store distribution; Android 6.0 or newer is required. The build has not been tested on a physical device. See the repository README for installation and limitations.'

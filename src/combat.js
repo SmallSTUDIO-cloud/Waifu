@@ -1,6 +1,12 @@
 export const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 export const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 export const inRange = (a, b, range) => distance(a, b) <= range;
+export function dodgeDirection(move, facing) {
+  const x = move.x || move.y ? move.x : facing;
+  const y = move.y;
+  const length = Math.hypot(x, y) || 1;
+  return { x: x / length, y: y / length };
+}
 export function newEncounter() {
   return {
     player: { x: 350, y: 430, hp: 100, energy: 0, facing: 1, attackCooldown: 0, dodgeCooldown: 0, dodgeTime: 0, invulnerable: 0, swing: 0, combo: 0 },

@@ -4,7 +4,7 @@ A mobile-first **2D combat prototype** for an original anime action RPG. Fight s
 
 ## Android test APK
 
-The Android prerelease contains `scarlet-veil-android-test.apk`. Download it from the [GitHub releases page](https://github.com/SmallSTUDIO-cloud/Waifu/releases), open it on an Android 6.0+ device and allow installation from your browser or file manager if prompted. It runs in landscape. Attack, dodge and skill buttons are on the right; move using the left joystick. Tap the music button to mute. Back pauses the fight, returns to the title from a paused screen, or exits from the title.
+The Android prerelease contains `scarlet-veil-android-test.apk`. Download it from the [GitHub releases page](https://github.com/SmallSTUDIO-cloud/Waifu/releases), open it on an Android 6.0+ device and allow installation from your browser or file manager if prompted. It runs in landscape. Attack, dodge and skill buttons are on the right; move using the left joystick. Use the title screen settings to save audio and reduced-motion preferences; your best completion time is stored locally. Tap the music button to mute during combat. Back closes open menus, pauses the fight, returns to the title from a paused screen, or exits from the title.
 
 The APK is an **offline Android WebView wrapper around the 2D prototype**, not the full native 3D game. It is signed with an automatically generated debug key for testing, not production or Play Store distribution. Later debug builds may use a different signing key and require uninstalling the old test app before installation. It has not yet been verified on a physical device.
 
@@ -27,4 +27,4 @@ For development on a computer, `npm run dev` runs the same prototype. Keyboard c
 
 ## Scope and roadmap
 
-This is a small vertical slice, **not** a complete gacha game or a 3D character showcase. There are no 3D models, rigging, jiggle physics, character switching, gacha, account backend, or iOS build. The canvas uses capped device pixel ratio, bounded particles, and page-visibility pausing; 3D LOD and frustum culling do not apply to this 2D prototype. See [the plan](docs/PLAN.md) for research, asset provenance and production gates.
+This is a small vertical slice, **not** a complete gacha game or a 3D character showcase. There are no 3D models, rigging, jiggle physics, character switching, gacha, account backend, or iOS build. The canvas uses capped device pixel ratio, bounded particles, and page-visibility pausing; 3D LOD and frustum culling do not apply to this 2D prototype. See [the plan](docs/PLAN.md) and [production roadmap](docs/PRODUCTION-ROADMAP.md) for research, provenance and production gates.

@@ -64,7 +64,7 @@ public final class MainActivity extends Activity {
 
     @Override public void onBackPressed() {
         if (game == null) { super.onBackPressed(); return; }
-        game.evaluateJavascript("(function(){var g=document.getElementById('game'); if(!g || g.classList.contains('hidden')) return false; if(document.getElementById('overlay').classList.contains('hidden')) document.getElementById('pause').click(); else document.getElementById('back').click(); return true;})()", handled -> {
+        game.evaluateJavascript("(function(){var s=document.getElementById('settings'), b=document.getElementById('briefing'); if(s && !s.classList.contains('hidden')) {document.getElementById('settings-close').click(); return true;} if(b && !b.classList.contains('hidden')) {document.getElementById('brief-close').click(); return true;} var g=document.getElementById('game'); if(!g || g.classList.contains('hidden')) return false; if(document.getElementById('overlay').classList.contains('hidden')) document.getElementById('pause').click(); else document.getElementById('back').click(); return true;})()", handled -> {
             if ("false".equals(handled)) finish();
         });
     }

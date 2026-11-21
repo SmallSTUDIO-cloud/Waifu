@@ -20,7 +20,7 @@ Genshin Impact's combat emphasizes combining elements; Punishing: Gray Raven cen
 * Replace synthesized placeholder sounds and concept images with approved production assets, verify rights, optimize and test on actual mobile devices, and run accessibility, security and store-compliance reviews.
 
 ## Art provenance
-`public/art/veil-keyart.png`, `public/art/arena.png` and `art-source/fighter-source.png` were generated for this prototype. `fighter.png` is a green-screen extraction from the source. The supplied reference images are not distributed. These are concept/prototype assets and require art-direction and rights review before commercial release.
+`public/art/veil-keyart.png`, `public/art/arena.png` , `art-source/fighter-source.png` and `art-source/sentinel-source.png` were generated for this prototype. `fighter.png` and `sentinel.png` are green-screen extractions from their sources. The supplied reference images are not distributed. These are concept/prototype assets and require art-direction and rights review before commercial release.
 
 ## Verification and open issues
 * Ran the unit tests and production build. In headless Chromium, inspected the title and battle at desktop and landscape phone sizes, tested attacks/energy, pause/resume and the portrait rotation prompt.
@@ -30,3 +30,6 @@ Genshin Impact's combat emphasizes combining elements; Punishing: Gray Raven cen
 
 ## Android test packaging
 The Android package is a debug-signed WebView wrapper around the same 2D prototype, with bundled assets served from an intercepted local HTTPS origin and other network requests blocked. It is not a native 3D game. GitHub Actions compiles the assets and APK. A physical Android device and Play Store signing/compliance review are still required; this test APK is not a production release.
+
+## Latest iteration
+Added loading/retry, an operation briefing, local settings and completion records, improved small-landscape layouts, enemy concept cutouts and a fixed-aspect battle viewport. These remain 2D prototype assets. The production plan and remaining gates are in [PRODUCTION-ROADMAP.md](PRODUCTION-ROADMAP.md).
