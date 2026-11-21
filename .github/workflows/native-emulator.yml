@@ -79,7 +79,14 @@ jobs:
             adb shell input keyevent 82
             echo '::warning title=Emulator phase::Installing APK'
             adb install -r "$RUNNER_TEMP/secondary-debug.apk"
-            adb shell run-as com.smallstudio.scarletveil3d touch files/secondary_profile
+            if ! message=$(adb shell run-as com.smallstudio.scarletveil3d mkdir -p files 2>&1); then
+              echo "::error title=Profiler marker::$message"
+              exit 1
+            fi
+            if ! message=$(adb shell run-as com.smallstudio.scarletveil3d touch files/secondary_profile 2>&1); then
+              echo "::error title=Profiler marker::$message"
+              exit 1
+            fi
             echo '::warning title=Emulator phase::Starting game'
             adb logcat -c
             adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.smallstudio.scarletveil3d
