@@ -24,10 +24,15 @@ func run_test() -> void:
         printerr("FAIL: player damage")
         quit(1)
         return
+    scene.player.attack()
     scene.player.dodge()
     scene.player.take_damage(14)
     if scene.player.health != 86:
         printerr("FAIL: dodge invulnerability")
+        quit(1)
+        return
+    if not scene.player.attack_timer == 0.0:
+        printerr("FAIL: dodge did not cancel attack")
         quit(1)
         return
     scene.player.dash_time = 0.0
@@ -35,8 +40,28 @@ func run_test() -> void:
     scene.player.facing = Vector3(0, 0, -1)
     scene.player.attack()
     for i in range(15): await physics_frame
+    var saw_effect = false
+    for child in scene.get_children():
+        if child.get_script() == load("res://scripts/combat_vfx.gd"):
+            saw_effect = true
+    if not saw_effect:
+        printerr("FAIL: attack impact effect missing")
+        quit(1)
+        return
     if enemies[0].hp >= 3:
         printerr("FAIL: attack did not hit nearby enemy")
+        quit(1)
+        return
+    var visual = load("res://scripts/combat_vfx.gd").new()
+    visual.setup("dodge")
+    root.add_child(visual)
+    if visual.shape.mesh.get_surface_count() != 1:
+        printerr("FAIL: dodge visual geometry missing")
+        quit(1)
+        return
+    visual._process(1.0)
+    if not visual.is_queued_for_deletion():
+        printerr("FAIL: transient effect did not clean up")
         quit(1)
         return
     for enemy in enemies:

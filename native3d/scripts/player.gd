@@ -2,11 +2,14 @@ extends CharacterBody3D
 
 signal health_changed(value: int)
 signal hit_enemy(enemy: Node3D, damage: int)
+signal attack_swing(stage: int)
 
 const AVATAR = preload("res://assets/avatar.glb")
 const SPRING = preload("res://scripts/spring.gd")
 const SPEED: float = 4.1
 const DASH_SPEED: float = 10.0
+const ATTACK_DURATION: float = 0.48
+const DASH_DURATION: float = 0.28
 var control: Vector2 = Vector2.ZERO
 var facing: Vector3 = Vector3(0, 0, -1)
 var health: int = 100
@@ -30,6 +33,7 @@ var previous_motion: Vector3 = Vector3.ZERO
 var visual_time: float = 0.0
 var speed_ratio: float = 0.0
 var enabled: bool = false
+var pose_blend: float = 1.0
 
 func _ready() -> void:
     collision_layer = 2
@@ -80,19 +84,33 @@ func _attach_sword() -> void:
         anchor = attachment
     else:
         anchor = model_root
-    var sword = MeshInstance3D.new()
-    var blade = BoxMesh.new()
-    blade.size = Vector3(0.045, 0.95, 0.09)
-    sword.mesh = blade
+    # The grip is at the hand origin. Separate pieces give a readable sword
+    # silhouette while keeping the model cheap enough for a mobile prototype.
+    var grip = Node3D.new()
+    anchor.add_child(grip)
+    if hand < 0:
+        grip.position = Vector3(0.4, 1.0, 0.0)
+    grip.rotation_degrees = Vector3(0, 0, -12)
+    _sword_piece(grip, Vector3(0, 0.055, 0), Vector3(0.045, 0.17, 0.045), Color(0.14, 0.065, 0.08), 0.2)
+    _sword_piece(grip, Vector3(0, -0.045, 0), Vector3(0.19, 0.035, 0.09), Color(0.42, 0.25, 0.19), 0.8)
+    _sword_piece(grip, Vector3(0, -0.48, 0), Vector3(0.065, 0.85, 0.035), Color(0.74, 0.82, 0.88), 0.85)
+    _sword_piece(grip, Vector3(0, -0.48, -0.019), Vector3(0.012, 0.8, 0.009), Color(0.8, 0.055, 0.1), 0.3, true)
+
+func _sword_piece(parent: Node3D, pos: Vector3, size: Vector3, color: Color, metal: float, glow: bool = false) -> void:
+    var piece = MeshInstance3D.new()
+    var mesh = BoxMesh.new()
+    mesh.size = size
+    piece.mesh = mesh
     var material = StandardMaterial3D.new()
-    material.albedo_color = Color(0.82, 0.88, 0.92)
-    material.metallic = 0.7
-    material.roughness = 0.25
-    material.emission_enabled = true
-    material.emission = Color(0.4, 0.015, 0.025)
-    sword.material_override = material
-    sword.position = Vector3(0.03, -0.48, 0.0) if hand >= 0 else Vector3(0.4, 1.0, 0.0)
-    anchor.add_child(sword)
+    material.albedo_color = color
+    material.metallic = metal
+    material.roughness = 0.3
+    if glow:
+        material.emission_enabled = true
+        material.emission = color
+    piece.material_override = material
+    piece.position = pos
+    parent.add_child(piece)
 
 func _physics_process(delta: float) -> void:
     if not enabled:
@@ -121,8 +139,9 @@ func _physics_process(delta: float) -> void:
     if facing.length_squared() > 0.0:
         var angle = atan2(-facing.x, -facing.z)
         model_root.rotation.y = lerp_angle(model_root.rotation.y, angle, minf(1.0, delta * 14.0))
-    if attack_timer > 0.0 and attack_timer < 0.30 and not attack_hit:
+    if attack_timer > 0.0 and attack_timer <= ATTACK_DURATION - 0.16 and not attack_hit:
         attack_hit = true
+        attack_swing.emit(combo)
         for enemy in get_tree().get_nodes_in_group("enemies"):
             if is_instance_valid(enemy) and enemy.has_method("take_damage"):
                 var offset: Vector3 = enemy.global_position - global_position
@@ -136,17 +155,22 @@ func attack() -> bool:
         return false
     combo = combo % 3 + 1
     combo_timeout = 1.1
-    attack_timer = 0.42
-    attack_cooldown = 0.34
+    attack_timer = ATTACK_DURATION
+    attack_cooldown = 0.40
     attack_hit = false
     return true
 
-func dodge() -> void:
+func dodge() -> bool:
     if not enabled or dash_cooldown > 0.0:
-        return
-    dash_time = 0.23
+        return false
+    # Dodge cancels the current attack, including its pending hit.
+    attack_timer = 0.0
+    attack_hit = true
+    attack_cooldown = 0.0
+    dash_time = DASH_DURATION
     dash_cooldown = 1.0
     invulnerable = 0.32
+    return true
 
 func take_damage(amount: int) -> void:
     if not enabled or invulnerable > 0.0:
@@ -155,22 +179,54 @@ func take_damage(amount: int) -> void:
     invulnerable = 0.6
     health_changed.emit(health)
 
-func _pose(bone_name: String, axis: Vector3, angle: float) -> void:
+# All rotations are additive to the imported bone poses; no animation files
+# are baked into the temporary avatar. Blending prevents state transitions from
+# snapping while the attack timeline keeps wind-up, strike and recovery distinct.
+func _pose(bone_name: String, angles: Vector3) -> void:
     var index = skeleton.find_bone(bone_name)
     if index >= 0 and bone_rest.has(index):
-        skeleton.set_bone_pose_rotation(index, bone_rest[index] * Quaternion(axis, angle))
+        var target: Quaternion = bone_rest[index] * Quaternion.from_euler(angles)
+        skeleton.set_bone_pose_rotation(index, skeleton.get_bone_pose_rotation(index).slerp(target, pose_blend))
+
+func _attack_pose() -> float:
+    if attack_timer <= 0.0:
+        return 0.0
+    var t = 1.0 - attack_timer / ATTACK_DURATION
+    if t < 0.30:
+        return -smoothstep(0.0, 0.30, t) * 0.65
+    if t < 0.62:
+        return lerpf(-0.65, 1.0, smoothstep(0.30, 0.62, t))
+    return 1.0 - smoothstep(0.62, 1.0, t)
 
 func _animate(delta: float) -> void:
     if not skeleton:
         return
     visual_time += delta
-    var stride: float = sin(visual_time * 10.0) * speed_ratio
-    _pose("J_Bip_L_UpperLeg", Vector3.RIGHT, stride * 0.45)
-    _pose("J_Bip_R_UpperLeg", Vector3.RIGHT, -stride * 0.45)
-    _pose("J_Bip_L_LowerLeg", Vector3.RIGHT, maxf(0.0, -stride) * 0.35)
-    _pose("J_Bip_R_LowerLeg", Vector3.RIGHT, maxf(0.0, stride) * 0.35)
-    _pose("J_Bip_L_UpperArm", Vector3.FORWARD, -0.95 + stride * 0.15)
-    _pose("J_Bip_R_UpperArm", Vector3.FORWARD, 0.95 - stride * 0.15 - sin((0.42 - attack_timer) * PI / 0.42) * (1.2 if attack_timer > 0.0 else 0.0))
+    pose_blend = 1.0 - exp(-delta * 18.0)
+    var stride: float = sin(visual_time * 9.5) * speed_ratio
+    var lift_l: float = maxf(0.0, -sin(visual_time * 9.5)) * speed_ratio
+    var lift_r: float = maxf(0.0, sin(visual_time * 9.5)) * speed_ratio
+    var swing: float = _attack_pose()
+    var side: float = -1.0 if combo == 2 else 1.0
+    var dash: float = sin(PI * (1.0 - dash_time / DASH_DURATION)) if dash_time > 0.0 else 0.0
+    var run: float = speed_ratio * (1.0 - dash * 0.5)
+    model_root.position.y = 0.018 * (1.0 - cos(visual_time * 19.0)) * run - 0.16 * dash
+    _pose("J_Bip_C_Hips", Vector3(0.08 * run + 0.34 * dash, swing * 0.20 * side, stride * 0.035))
+    _pose("J_Bip_C_Spine", Vector3(-0.10 * run + 0.20 * dash, -swing * 0.35 * side, -stride * 0.025))
+    _pose("J_Bip_C_Chest", Vector3(0.02 * sin(visual_time * 2.2), -swing * 0.28 * side, 0.08 * dash))
+    _pose("J_Bip_C_Head", Vector3(-0.12 * dash, swing * 0.12 * side, 0.0))
+    _pose("J_Bip_L_UpperLeg", Vector3(stride * 0.62 - 0.65 * dash, 0, -0.04))
+    _pose("J_Bip_R_UpperLeg", Vector3(-stride * 0.62 + 0.40 * dash, 0, 0.04))
+    _pose("J_Bip_L_LowerLeg", Vector3(-lift_l * 0.70 - 0.75 * dash, 0, 0))
+    _pose("J_Bip_R_LowerLeg", Vector3(-lift_r * 0.70 - 0.35 * dash, 0, 0))
+    _pose("J_Bip_L_Foot", Vector3(lift_l * 0.35 + 0.15 * dash, 0, 0))
+    _pose("J_Bip_R_Foot", Vector3(lift_r * 0.35 + 0.15 * dash, 0, 0))
+    _pose("J_Bip_L_UpperArm", Vector3(stride * 0.12 - dash * 0.30, stride * 0.30 - 0.35 * dash, 1.12))
+    _pose("J_Bip_L_LowerArm", Vector3(0, -0.20, 0.30 + 0.35 * dash))
+    # Shoulder, elbow and wrist all contribute to the sword arc.
+    _pose("J_Bip_R_UpperArm", Vector3(0.0, -0.30 - stride * 0.12 + swing * 1.05 * side, -1.08 + swing * 0.42))
+    _pose("J_Bip_R_LowerArm", Vector3(0, 0.25 + swing * 0.50 * side, -0.38 - 0.25 * dash))
+    _pose("J_Bip_R_Hand", Vector3(0.10, -0.15 + swing * 0.30 * side, 0.12))
     # Procedural spring on the imported secondary bones. Motion lags acceleration
     # and settles with damping; limits prevent instability at low mobile frame rates.
     var current_motion: Vector3 = Vector3(velocity.x, 0.0, velocity.z)

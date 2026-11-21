@@ -3,6 +3,7 @@ extends Node3D
 const PLAYER_SCRIPT = preload("res://scripts/player.gd")
 const ENEMY_SCRIPT = preload("res://scripts/enemy.gd")
 const JOYSTICK_SCRIPT = preload("res://scripts/joystick.gd")
+const COMBAT_VFX = preload("res://scripts/combat_vfx.gd")
 var player: CharacterBody3D
 var camera: Camera3D
 var joystick: Control
@@ -14,8 +15,8 @@ var tip_label: Label
 var timer: float = 0.0
 var playing: bool = false
 var remaining: int = 0
-var slash: MeshInstance3D
-var slash_life: float = 0.0
+var preview_mode: String = ""
+var preview_action_started: bool = false
 
 func _ready() -> void:
     _environment()
@@ -25,6 +26,7 @@ func _ready() -> void:
     player.position = Vector3(0, 0.1, 3)
     player.health_changed.connect(_on_health)
     player.hit_enemy.connect(_hit_enemy)
+    player.attack_swing.connect(_swing_vfx)
     camera = Camera3D.new()
     camera.current = true
     camera.fov = 47.0
@@ -33,8 +35,12 @@ func _ready() -> void:
     camera.look_at(Vector3(0, 1, 0))
     _ui()
     _update_camera(1.0)
-    if "--smoke-play" in OS.get_cmdline_user_args():
+    var args = OS.get_cmdline_user_args()
+    if "--smoke-play" in args or "--preview-move" in args or "--preview-attack" in args or "--preview-dodge" in args:
         start_game()
+    if "--preview-move" in args: preview_mode = "move"
+    if "--preview-attack" in args: preview_mode = "attack"
+    if "--preview-dodge" in args: preview_mode = "dodge"
 
 func _environment() -> void:
     var env_node = WorldEnvironment.new()
@@ -248,10 +254,12 @@ func _physics_process(delta: float) -> void:
     if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP): keyboard.y -= 1.0
     if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): keyboard.y += 1.0
     player.control = (joystick.direction + keyboard).limit_length(1.0)
+    if preview_mode == "move": player.control = Vector2(0.0, -1.0)
+    if not preview_action_started and timer > 0.08:
+        if preview_mode == "attack": _attack()
+        if preview_mode == "dodge": _dodge()
+        preview_action_started = true
     _update_camera(delta)
-    if slash_life > 0:
-        slash_life -= delta
-        if slash_life <= 0 and is_instance_valid(slash): slash.queue_free()
     if timer > 8.0: tip_label.visible = false
 
 func _update_camera(delta: float) -> void:
@@ -266,37 +274,29 @@ func _unhandled_key_input(event: InputEvent) -> void:
         elif event.keycode == KEY_ESCAPE: _pause()
 
 func _attack() -> void:
-    if not playing: return
-    if not player.attack(): return
-    if is_instance_valid(slash): slash.queue_free()
-    slash = MeshInstance3D.new()
-    var arc = ImmediateMesh.new()
-    arc.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
-    for i in range(24):
-        var a0: float = deg_to_rad(-65.0 + float(i) * 130.0 / 24.0)
-        var a1: float = deg_to_rad(-65.0 + float(i + 1) * 130.0 / 24.0)
-        var inner0 = Vector3(sin(a0) * 0.78, 0, -cos(a0) * 0.78)
-        var outer0 = Vector3(sin(a0) * 1.12, 0, -cos(a0) * 1.12)
-        var inner1 = Vector3(sin(a1) * 0.78, 0, -cos(a1) * 0.78)
-        var outer1 = Vector3(sin(a1) * 1.12, 0, -cos(a1) * 1.12)
-        for vertex in [inner0, outer0, inner1, outer0, outer1, inner1]: arc.surface_add_vertex(vertex)
-    arc.surface_end()
-    slash.mesh = arc
-    var slash_material = _material(Color(1.0, 0.12, 0.18), 0.0, true)
-    slash_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-    slash_material.cull_mode = BaseMaterial3D.CULL_DISABLED
-    slash.material_override = slash_material
-    slash.position = player.position + Vector3(0, 1.0, 0)
-    slash.rotation.y = atan2(-player.facing.x, -player.facing.z)
-    slash.rotation_degrees.x = 25
-    add_child(slash)
-    slash_life = 0.16
+    if playing:
+        player.attack()
+
+func _spawn_vfx(kind: String, location: Vector3, stage: int = 1) -> Node3D:
+    var effect = COMBAT_VFX.new()
+    effect.setup(kind, stage)
+    add_child(effect)
+    effect.global_position = location
+    return effect
+
+func _swing_vfx(stage: int) -> void:
+    var effect = _spawn_vfx("slash", player.global_position + Vector3(0, 1.0, 0), stage)
+    effect.rotation.y = atan2(-player.facing.x, -player.facing.z)
 
 func _dodge() -> void:
-    if playing: player.dodge()
+    if playing and player.dodge():
+        _spawn_vfx("dodge", player.global_position + Vector3(0, 0.04, 0))
 
 func _hit_enemy(enemy: Node3D, damage: int) -> void:
-    if is_instance_valid(enemy): enemy.take_damage(damage)
+    if is_instance_valid(enemy):
+        var effect = _spawn_vfx("impact", enemy.global_position + Vector3(0, 1.0, 0))
+        effect.rotation.y = camera.rotation.y
+        enemy.take_damage(damage)
 
 func _on_defeated() -> void:
     remaining -= 1

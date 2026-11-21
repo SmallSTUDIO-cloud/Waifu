@@ -1,6 +1,10 @@
 name: Android APK
 on:
   push:
+    paths-ignore:
+      - 'native3d/**'
+      - '.github/workflows/native-3d.yml'
+      - '.github/workflows/build.yml'
   pull_request:
   workflow_dispatch:
 permissions:
