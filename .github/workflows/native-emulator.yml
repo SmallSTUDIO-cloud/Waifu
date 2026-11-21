@@ -1,5 +1,8 @@
 name: Native Android emulator smoke
 on:
+  push:
+    paths:
+      - '.github/workflows/native-emulator.yml'
   workflow_dispatch:
 permissions:
   contents: write
