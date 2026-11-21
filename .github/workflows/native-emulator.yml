@@ -49,6 +49,7 @@ jobs:
             echo '::warning title=Emulator phase::Checking game process'
             adb shell pidof com.smallstudio.scarletveil3d
             adb shell dumpsys activity activities > /tmp/android-activity.txt
+            adb logcat -d -v brief > /tmp/android-live.log
             grep -i "com.smallstudio.scarletveil3d" /tmp/android-activity.txt || true
             adb exec-out screencap -p > /tmp/android-menu.png
             adb shell input tap 320 190
@@ -74,7 +75,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ -f /tmp/android-debug.log ]; then
-            cat /tmp/android-activity.txt /tmp/android-debug.log 2>/dev/null | tail -15000 > /tmp/android-debug-tail.log || true
+            { cat /tmp/android-activity.txt 2>/dev/null; grep -i -E 'godot|smallstudio|fatal|exception|error:' /tmp/android-live.log 2>/dev/null | tail -3000; } > /tmp/android-debug-tail.log || true
             python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/android-debug-tail.log","rb").read()).decode(),"encoding":"base64"}))' > /tmp/android-debug.json
             sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/android-debug.json --jq .sha)
             echo "::warning title=Android diagnostics::$sha"
