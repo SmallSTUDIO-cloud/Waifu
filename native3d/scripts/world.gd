@@ -29,7 +29,7 @@ func _ready() -> void:
     _arena()
     player = PLAYER_SCRIPT.new()
     add_child(player)
-    profile_enabled = OS.is_debug_build() and FileAccess.file_exists("user://secondary_profile")
+    profile_enabled = OS.is_debug_build() and bool(ProjectSettings.get_setting("secondary_motion/profile_debug", false))
     player.profile_secondary = profile_enabled
     player.position = Vector3(0, 0.1, 3)
     player.health_changed.connect(_on_health)
@@ -277,7 +277,7 @@ func start_game() -> void:
     _on_health(100)
     _refresh_count()
 
-# Optional debug-only benchmark: create user://secondary_profile before launch.
+# Optional debug-only benchmark enabled by the project profile setting.
 # Wall-frame timing includes vsync and all game work, not just the solver.
 func _process(delta: float) -> void:
     if not profile_enabled or not playing or profile_reported: return

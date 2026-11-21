@@ -59,6 +59,7 @@ jobs:
       - name: Import and build private debug APK
         run: |
           set -o pipefail
+          sed -i 's/profile_debug=false/profile_debug=true/' native3d/project.godot
           godot --headless --path native3d --editor --import --quit > /tmp/android-import.log 2>&1
           godot --headless --path native3d --export-debug Android "$RUNNER_TEMP/secondary-debug.apk" 2>&1 | tee /tmp/android-export.log
           test -s "$RUNNER_TEMP/secondary-debug.apk"
@@ -79,14 +80,6 @@ jobs:
             adb shell input keyevent 82
             echo '::warning title=Emulator phase::Installing APK'
             adb install -r "$RUNNER_TEMP/secondary-debug.apk"
-            if ! message=$(adb shell run-as com.smallstudio.scarletveil3d mkdir -p files 2>&1); then
-              echo "::error title=Profiler marker::$message"
-              exit 1
-            fi
-            if ! message=$(adb shell run-as com.smallstudio.scarletveil3d touch files/secondary_profile 2>&1); then
-              echo "::error title=Profiler marker::$message"
-              exit 1
-            fi
             echo '::warning title=Emulator phase::Starting game'
             adb logcat -c
             adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.smallstudio.scarletveil3d
@@ -109,6 +102,7 @@ jobs:
             adb shell pidof com.smallstudio.scarletveil3d
             adb exec-out screencap -p > /tmp/android-frame.png
             adb logcat -d -v brief > /tmp/android-live.log
+            if ! grep -q SECONDARY_PROFILE /tmp/android-live.log; then echo "::warning::No Godot frame timing samples captured"; fi
             adb logcat -d -s AndroidRuntime:E > /tmp/android-errors.log
             if grep -q 'FATAL EXCEPTION' /tmp/android-errors.log; then cat /tmp/android-errors.log; exit 1; fi
       - name: Summarize Android emulator frame data

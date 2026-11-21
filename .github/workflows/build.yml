@@ -4,6 +4,7 @@ on:
     paths-ignore:
       - 'native3d/**'
       - '.github/workflows/native-3d.yml'
+      - '.github/workflows/native-emulator.yml'
       - '.github/workflows/build.yml'
   pull_request:
   workflow_dispatch:
