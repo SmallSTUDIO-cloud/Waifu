@@ -1,41 +1,48 @@
 extends Node3D
-# Lightweight transient geometry: no textures, lights, particles, or per-frame mesh rebuilds.
+# Short-lived emissive geometry, with no textures or additional lights.
+# The visual count and lifetime are intentionally bounded for mobile.
 var lifetime: float = 0.30
 var age: float = 0.0
 var kind: String = "slash"
 var material: StandardMaterial3D
 var shape: MeshInstance3D
+var spin_direction: float = 1.0
 
 func setup(effect_kind: String, stage: int = 1) -> void:
     kind = effect_kind
-    lifetime = 0.32 if kind == "slash" else (0.35 if kind == "impact" else 0.28)
+    spin_direction = -1.0 if stage == 2 else 1.0
+    lifetime = 0.32 if kind == "slash" else (0.32 if kind == "impact" else 0.30)
     shape = MeshInstance3D.new()
     var mesh = ImmediateMesh.new()
     mesh.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
     if kind == "slash":
-        # A feathered crescent: transparent edges and a hot inner streak.
-        var radius: float = 1.5 if stage == 3 else 1.32
-        var direction: float = -1.0 if stage == 2 else 1.0
-        for i in range(30):
-            var a = deg_to_rad(-76.0 + float(i) * 152.0 / 30.0) * direction
-            var b = deg_to_rad(-76.0 + float(i + 1) * 152.0 / 30.0) * direction
-            var fade_a = pow(sin(PI * float(i) / 30.0), 0.7)
-            var fade_b = pow(sin(PI * float(i + 1) / 30.0), 0.7)
-            _arc_quad(mesh, a, b, radius - 0.32, radius - 0.10, Color(1, 0.07, 0.12, 0), Color(1, 0.25, 0.27, fade_a * 0.7), fade_b)
-            _arc_quad(mesh, a, b, radius - 0.10, radius, Color(1, 0.85, 0.78, fade_a), Color(1, 0.18, 0.15, 0), fade_b)
+        var radius: float = 1.52 if stage == 3 else 1.38
+        # Soft feather, warm inner body and a narrow white-hot edge.
+        _ring_band(mesh, radius - 0.45, radius - 0.16, -78, 78, Color(1, 0.04, 0.10, 0), Color(1, 0.12, 0.10, 0.55), true)
+        _ring_band(mesh, radius - 0.16, radius - 0.05, -78, 78, Color(1, 0.12, 0.10, 0.55), Color(1, 0.72, 0.45, 0.86), true)
+        _ring_band(mesh, radius - 0.05, radius, -78, 78, Color(1, 0.90, 0.76, 0.90), Color(1, 0.16, 0.12, 0), true)
+        for i in range(7):
+            var a = deg_to_rad(-67.0 + i * 21.0)
+            var r = radius + 0.08 + 0.05 * (i % 3)
+            _ground_shard(mesh, a, r, 0.22 + 0.05 * (i % 2), Color(1, 0.40, 0.19, 0.75))
         rotation_degrees.x = 35.0 if stage != 3 else -32.0
         rotation_degrees.z = -18.0 if stage == 2 else 18.0
     elif kind == "impact":
-        for i in range(10):
-            var a: float = TAU * float(i) / 10.0
+        # The impact plane faces the camera. Multiple streak lengths keep
+        # the silhouette crisp without a costly particle system.
+        for i in range(16):
+            var a: float = TAU * float(i) / 16.0
             var dir = Vector3(cos(a), sin(a), 0)
-            var normal = Vector3(-dir.y, dir.x, 0) * 0.035
-            _tri(mesh, dir * 0.06 - normal, dir * (0.35 + 0.10 * (i % 3)), dir * 0.06 + normal, Color(1.0, 0.7, 0.4, 0.9))
+            var side = Vector3(-dir.y, dir.x, 0) * (0.025 if i % 2 == 0 else 0.012)
+            var length = 0.42 + 0.13 * (i % 4)
+            _triangle(mesh, dir * 0.08 - side, dir * length, dir * 0.08 + side, Color(1.0, 0.65, 0.27, 0.92))
+        _triangle(mesh, Vector3(-0.28, 0, 0), Vector3(0.28, 0, 0), Vector3(0, 0.10, 0), Color(1, 0.9, 0.7, 0.9))
+        _triangle(mesh, Vector3(-0.28, 0, 0), Vector3(0, -0.10, 0), Vector3(0.28, 0, 0), Color(1, 0.9, 0.7, 0.9))
     else:
-        for i in range(24):
-            var a = TAU * float(i) / 24.0
-            var b = TAU * float(i + 1) / 24.0
-            _arc_quad(mesh, a, b, 0.35, 0.42, Color(0.55, 0.8, 1.0, 0.5), Color(0.55, 0.8, 1.0, 0), 1.0)
+        _ring_band(mesh, 0.32, 0.42, 0, 360, Color(0.5, 0.75, 1.0, 0), Color(0.7, 0.86, 1.0, 0.62), false)
+        _ring_band(mesh, 0.42, 0.50, 0, 360, Color(0.7, 0.86, 1.0, 0.62), Color(0.4, 0.68, 1.0, 0), false)
+        for i in range(8):
+            _ground_shard(mesh, TAU * float(i) / 8.0, 0.48, 0.19, Color(0.65, 0.85, 1, 0.6))
     mesh.surface_end()
     shape.mesh = mesh
     material = StandardMaterial3D.new()
@@ -44,26 +51,40 @@ func setup(effect_kind: String, stage: int = 1) -> void:
     material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
     material.cull_mode = BaseMaterial3D.CULL_DISABLED
     material.vertex_color_use_as_albedo = true
-    material.no_depth_test = false
     shape.material_override = material
+    shape.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     add_child(shape)
 
 func _point(angle: float, radius: float) -> Vector3:
     return Vector3(sin(angle) * radius, 0, -cos(angle) * radius)
 
-func _arc_quad(mesh: ImmediateMesh, a: float, b: float, inner: float, outer: float, c0: Color, c1: Color, end_fade: float) -> void:
-    var end0 = c0
-    var end1 = c1
-    if c0.a > 0.0: end0.a = end_fade
-    if c1.a > 0.0: end1.a = end_fade * 0.7
-    _vertex(mesh, _point(a, inner), c0)
-    _vertex(mesh, _point(a, outer), c1)
-    _vertex(mesh, _point(b, inner), end0)
-    _vertex(mesh, _point(a, outer), c1)
-    _vertex(mesh, _point(b, outer), end1)
-    _vertex(mesh, _point(b, inner), end0)
+func _ring_band(mesh: ImmediateMesh, inner: float, outer: float, start: float, end: float, inner_color: Color, outer_color: Color, taper: bool) -> void:
+    const SEGMENTS = 32
+    for i in range(SEGMENTS):
+        var p0 = float(i) / SEGMENTS
+        var p1 = float(i + 1) / SEGMENTS
+        var a = deg_to_rad(lerpf(start, end, p0))
+        var b = deg_to_rad(lerpf(start, end, p1))
+        var fade0 = pow(sin(PI * p0), 0.6) if taper else 1.0
+        var fade1 = pow(sin(PI * p1), 0.6) if taper else 1.0
+        var i0 = inner_color; i0.a *= fade0
+        var o0 = outer_color; o0.a *= fade0
+        var i1 = inner_color; i1.a *= fade1
+        var o1 = outer_color; o1.a *= fade1
+        _vertex(mesh, _point(a, inner), i0)
+        _vertex(mesh, _point(a, outer), o0)
+        _vertex(mesh, _point(b, inner), i1)
+        _vertex(mesh, _point(a, outer), o0)
+        _vertex(mesh, _point(b, outer), o1)
+        _vertex(mesh, _point(b, inner), i1)
 
-func _tri(mesh: ImmediateMesh, a: Vector3, b: Vector3, c: Vector3, color: Color) -> void:
+func _ground_shard(mesh: ImmediateMesh, angle: float, radius: float, length: float, color: Color) -> void:
+    var tip = _point(angle, radius + length)
+    var center = _point(angle, radius)
+    var side = Vector3(cos(angle), 0, sin(angle)) * 0.025
+    _triangle(mesh, center - side, tip, center + side, color)
+
+func _triangle(mesh: ImmediateMesh, a: Vector3, b: Vector3, c: Vector3, color: Color) -> void:
     _vertex(mesh, a, color)
     _vertex(mesh, b, Color(color.r, color.g, color.b, 0.0))
     _vertex(mesh, c, color)
@@ -78,11 +99,12 @@ func _process(delta: float) -> void:
     if t >= 1.0:
         queue_free()
         return
-    material.albedo_color = Color(1, 1, 1, 1.0 - t)
+    var fade: float = (1.0 - t) * (1.0 - t)
+    material.albedo_color = Color(1, 1, 1, fade)
     if kind == "slash":
-        shape.rotation.y = lerpf(-0.20, 0.18, t)
-        shape.scale = Vector3.ONE * lerpf(0.87, 1.12, t)
+        shape.rotation.y = spin_direction * lerpf(-0.22, 0.18, t)
+        shape.scale = Vector3.ONE * lerpf(0.90, 1.08, t)
     elif kind == "impact":
-        shape.scale = Vector3.ONE * lerpf(0.55, 1.2, t)
+        shape.scale = Vector3.ONE * lerpf(0.55, 1.25, t)
     else:
-        shape.scale = Vector3.ONE * lerpf(0.8, 2.2, t)
+        shape.scale = Vector3.ONE * lerpf(0.7, 2.0, t)

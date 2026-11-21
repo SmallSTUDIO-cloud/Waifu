@@ -6,6 +6,7 @@ signal attack_swing(stage: int)
 
 const AVATAR = preload("res://assets/avatar.glb")
 const SPRING = preload("res://scripts/spring.gd")
+const SWORD_TRAIL = preload("res://scripts/sword_trail.gd")
 const SPEED: float = 4.1
 const DASH_SPEED: float = 10.0
 const ATTACK_DURATION: float = 0.48
@@ -34,6 +35,12 @@ var visual_time: float = 0.0
 var speed_ratio: float = 0.0
 var enabled: bool = false
 var pose_blend: float = 1.0
+var gait_phase: float = 0.0
+var turn_lean: float = 0.0
+var attack_buffered: bool = false
+var dash_direction: Vector3 = Vector3.FORWARD
+var sword_grip: Node3D
+var sword_trail: MeshInstance3D
 
 func _ready() -> void:
     collision_layer = 2
@@ -64,6 +71,8 @@ func _ready() -> void:
                 body_bones.append(i)
                 springs[i] = SPRING.new()
         _attach_sword()
+        sword_trail = SWORD_TRAIL.new()
+        add_child(sword_trail)
 
 func _find_skeleton(node: Node) -> Skeleton3D:
     if node is Skeleton3D:
@@ -87,6 +96,7 @@ func _attach_sword() -> void:
     # The grip is at the hand origin. Separate pieces give a readable sword
     # silhouette while keeping the model cheap enough for a mobile prototype.
     var grip = Node3D.new()
+    sword_grip = grip
     anchor.add_child(grip)
     if hand < 0:
         grip.position = Vector3(0.4, 1.0, 0.0)
@@ -123,22 +133,31 @@ func _physics_process(delta: float) -> void:
     invulnerable = maxf(0.0, invulnerable - delta)
     if combo_timeout <= 0.0:
         combo = 0
+    if attack_buffered and attack_cooldown <= 0.0 and dash_time <= 0.0:
+        attack_buffered = false
+        attack()
     var input_dir = Vector3(control.x, 0.0, control.y)
     input_dir = input_dir.limit_length(1.0)
     if dash_time <= 0.0 and input_dir.length_squared() > 0.01:
         facing = input_dir.normalized()
     var speed = DASH_SPEED if dash_time > 0.0 else SPEED * (0.45 if attack_timer > 0.0 else 1.0)
-    var motion = facing if dash_time > 0.0 else input_dir
-    velocity.x = motion.x * speed
-    velocity.z = motion.z * speed
+    var motion = dash_direction if dash_time > 0.0 else input_dir
+    var target_velocity = motion * speed
+    var acceleration: float = 42.0 if dash_time > 0.0 else (21.0 if input_dir.length_squared() > 0.01 else 28.0)
+    var horizontal = Vector2(velocity.x, velocity.z).move_toward(Vector2(target_velocity.x, target_velocity.z), acceleration * delta)
+    velocity.x = horizontal.x
+    velocity.z = horizontal.y
     velocity.y -= 18.0 * delta
     move_and_slide()
     position.x = clampf(position.x, -8.5, 8.5)
     position.z = clampf(position.z, -8.5, 8.5)
-    speed_ratio = lerpf(speed_ratio, minf(motion.length(), 1.0), minf(1.0, delta * 10.0))
+    var target_ratio: float = 0.0 if dash_time > 0.0 else clampf(Vector2(velocity.x, velocity.z).length() / SPEED, 0.0, 1.0)
+    speed_ratio = lerpf(speed_ratio, target_ratio, 1.0 - exp(-delta * 9.0))
     if facing.length_squared() > 0.0:
         var angle = atan2(-facing.x, -facing.z)
-        model_root.rotation.y = lerp_angle(model_root.rotation.y, angle, minf(1.0, delta * 14.0))
+        var angle_error: float = wrapf(angle - model_root.rotation.y, -PI, PI)
+        turn_lean = lerpf(turn_lean, clampf(-angle_error * 0.18, -0.18, 0.18) * speed_ratio, 1.0 - exp(-delta * 8.0))
+        model_root.rotation.y = lerp_angle(model_root.rotation.y, angle, 1.0 - exp(-delta * 12.0))
     if attack_timer > 0.0 and attack_timer <= ATTACK_DURATION - 0.16 and not attack_hit:
         attack_hit = true
         attack_swing.emit(combo)
@@ -149,9 +168,17 @@ func _physics_process(delta: float) -> void:
                     hit_enemy.emit(enemy, 2 if combo == 3 else 1)
                     energy = minf(100.0, energy + 20.0)
     _animate(delta)
+    if sword_trail:
+        var progress = 1.0 - attack_timer / ATTACK_DURATION
+        sword_trail.update_trail(delta, sword_grip, attack_timer > 0.0 and progress >= 0.26 and progress <= 0.84)
 
 func attack() -> bool:
-    if not enabled or attack_cooldown > 0.0 or dash_time > 0.0:
+    if not enabled or dash_time > 0.0:
+        return false
+    if attack_cooldown > 0.0:
+        if attack_cooldown <= 0.16:
+            attack_buffered = true
+            return true
         return false
     combo = combo % 3 + 1
     combo_timeout = 1.1
@@ -165,8 +192,13 @@ func dodge() -> bool:
         return false
     # Dodge cancels the current attack, including its pending hit.
     attack_timer = 0.0
+    attack_buffered = false
+    if sword_trail: sword_trail.clear_trail()
     attack_hit = true
     attack_cooldown = 0.0
+    var requested = Vector3(control.x, 0, control.y)
+    dash_direction = requested.normalized() if requested.length_squared() > 0.01 else facing
+    facing = dash_direction
     dash_time = DASH_DURATION
     dash_cooldown = 1.0
     invulnerable = 0.32
@@ -203,18 +235,23 @@ func _animate(delta: float) -> void:
         return
     visual_time += delta
     pose_blend = 1.0 - exp(-delta * 18.0)
-    var stride: float = sin(visual_time * 9.5) * speed_ratio
-    var lift_l: float = maxf(0.0, -sin(visual_time * 9.5)) * speed_ratio
-    var lift_r: float = maxf(0.0, sin(visual_time * 9.5)) * speed_ratio
+    # Phase follows actual ground speed, so a slow stick deflection doesn't
+    # produce a fast running cycle while the character barely moves.
+    gait_phase = fposmod(gait_phase + delta * speed_ratio * 9.5, TAU)
+    var gait: float = sin(gait_phase)
+    var stride: float = gait * speed_ratio
+    var lift_l: float = pow(maxf(0.0, -gait), 1.3) * speed_ratio
+    var lift_r: float = pow(maxf(0.0, gait), 1.3) * speed_ratio
     var swing: float = _attack_pose()
     var side: float = -1.0 if combo == 2 else 1.0
     var dash: float = sin(PI * (1.0 - dash_time / DASH_DURATION)) if dash_time > 0.0 else 0.0
     var run: float = speed_ratio * (1.0 - dash * 0.5)
-    model_root.position.y = 0.018 * (1.0 - cos(visual_time * 19.0)) * run - 0.19 * dash
-    model_root.rotation.x = lerpf(model_root.rotation.x, -0.42 * dash - 0.07 * run, pose_blend)
-    _pose("J_Bip_C_Hips", Vector3(0.08 * run + 0.34 * dash, swing * 0.20 * side, stride * 0.035))
+    model_root.position.y = 0.018 * (1.0 - cos(gait_phase * 2.0)) * run - 0.19 * dash
+    model_root.rotation.x = lerpf(model_root.rotation.x, -0.42 * dash - 0.08 * run, pose_blend)
+    model_root.rotation.z = lerpf(model_root.rotation.z, turn_lean, pose_blend)
+    _pose("J_Bip_C_Hips", Vector3(0.08 * run + 0.34 * dash, swing * 0.20 * side + stride * 0.075, stride * 0.05))
     _pose("J_Bip_C_Spine", Vector3(-0.10 * run + 0.20 * dash, -swing * 0.35 * side, -stride * 0.025))
-    _pose("J_Bip_C_Chest", Vector3(0.02 * sin(visual_time * 2.2), -swing * 0.28 * side, 0.08 * dash))
+    _pose("J_Bip_C_Chest", Vector3(0.025 * sin(visual_time * 2.2) * (1.0 - run), -swing * 0.28 * side - stride * 0.08, 0.08 * dash))
     _pose("J_Bip_C_Head", Vector3(-0.12 * dash, swing * 0.12 * side, 0.0))
     _pose("J_Bip_L_UpperLeg", Vector3(stride * 0.62 - 0.65 * dash, 0, -0.04))
     _pose("J_Bip_R_UpperLeg", Vector3(-stride * 0.62 + 0.40 * dash, 0, 0.04))
@@ -222,7 +259,7 @@ func _animate(delta: float) -> void:
     _pose("J_Bip_R_LowerLeg", Vector3(-lift_r * 0.70 - 0.35 * dash, 0, 0))
     _pose("J_Bip_L_Foot", Vector3(lift_l * 0.35 + 0.15 * dash, 0, 0))
     _pose("J_Bip_R_Foot", Vector3(lift_r * 0.35 + 0.15 * dash, 0, 0))
-    _pose("J_Bip_L_UpperArm", Vector3(stride * 0.12 - dash * 0.30, stride * 0.30 - 0.35 * dash, 1.12))
+    _pose("J_Bip_L_UpperArm", Vector3(-0.08 - dash * 0.30, stride * 0.36 - 0.35 * dash - swing * 0.20 * side, 1.12))
     _pose("J_Bip_L_LowerArm", Vector3(0, -0.20, 0.30 + 0.35 * dash))
     # Shoulder, elbow and wrist all contribute to the sword arc.
     _pose("J_Bip_R_UpperArm", Vector3(-0.28 * swing if combo == 3 else 0.0, -0.30 - stride * 0.12 + swing * 1.05 * side, -1.08 + swing * (0.80 if combo == 3 else 0.42)))

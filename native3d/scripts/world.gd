@@ -36,11 +36,12 @@ func _ready() -> void:
     _ui()
     _update_camera(1.0)
     var args = OS.get_cmdline_user_args()
-    if "--smoke-play" in args or "--preview-move" in args or "--preview-attack" in args or "--preview-dodge" in args:
+    if "--smoke-play" in args or "--preview-move" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args:
         start_game()
     if "--preview-move" in args: preview_mode = "move"
     if "--preview-attack" in args: preview_mode = "attack"
     if "--preview-dodge" in args: preview_mode = "dodge"
+    if "--preview-combo" in args: preview_mode = "combo"
 
 func _environment() -> void:
     var env_node = WorldEnvironment.new()
@@ -229,6 +230,8 @@ func start_game() -> void:
     player.invulnerable = 0.0
     player.attack_timer = 0.0
     player.attack_cooldown = 0.0
+    player.attack_buffered = false
+    if player.sword_trail: player.sword_trail.clear_trail()
     player.combo = 0
     player.combo_timeout = 0.0
     player.dash_time = 0.0
@@ -263,9 +266,11 @@ func _physics_process(delta: float) -> void:
     player.control = (joystick.direction + keyboard).limit_length(1.0)
     if preview_mode == "move": player.control = Vector2(0.0, -1.0)
     if not preview_action_started and timer > 0.08:
-        if preview_mode == "attack": _attack()
+        if preview_mode == "attack" or preview_mode == "combo": _attack()
         if preview_mode == "dodge": _dodge()
         preview_action_started = true
+    if preview_mode == "combo" and player.combo == 1 and timer > 0.54: _attack()
+    if preview_mode == "combo" and player.combo == 2 and timer > 1.0: _attack()
     _update_camera(delta)
     if timer > 8.0: tip_label.visible = false
 

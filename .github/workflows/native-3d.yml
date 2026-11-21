@@ -58,17 +58,36 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          for action in move attack dodge; do
+          python3 -m pip install --quiet Pillow
+          for action in move attack dodge combo; do
             mkdir -p "/tmp/preview-$action"
-            frames=12
-            if [ "$action" = dodge ]; then frames=7; fi
+            frames=30
+            if [ "$action" = combo ]; then frames=48; fi
             xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --write-movie "/tmp/preview-$action/frame.png" --fixed-fps 30 --quit-after "$frames" -- "--preview-$action" > "/tmp/preview-$action.log" 2>&1
             if grep -E 'SCRIPT ERROR|^ERROR:' "/tmp/preview-$action.log"; then exit 1; fi
-            shot=$(find "/tmp/preview-$action" -name '*.png' | sort | tail -1)
+            frame_number=12
+            if [ "$action" = dodge ]; then frame_number=7; fi
+            if [ "$action" = combo ]; then frame_number=36; fi
+            shot=$(find "/tmp/preview-$action" -name '*.png' | sort | sed -n "${frame_number}p")
             test -n "$shot"
             python3 -c 'import base64,json,sys; print(json.dumps({"content":base64.b64encode(open(sys.argv[1],"rb").read()).decode(),"encoding":"base64"}))' "$shot" > /tmp/preview-blob.json
             sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/preview-blob.json --jq .sha)
             echo "::warning title=Preview $action::$sha"
+            python3 - "$action" <<'PYCODE'
+          import glob, sys
+          from PIL import Image
+          action = sys.argv[1]
+          paths = sorted(glob.glob('/tmp/preview-' + action + '/*.png'))
+          frames = []
+          for path in paths[::2]:
+              im = Image.open(path).convert('RGB')
+              im.thumbnail((640, 360))
+              frames.append(im.quantize(colors=128, method=Image.Quantize.FASTOCTREE))
+          frames[0].save('/tmp/preview-' + action + '.gif', save_all=True, append_images=frames[1:], duration=67, loop=0, optimize=True)
+          PYCODE
+            python3 -c 'import base64,json,sys; print(json.dumps({"content":base64.b64encode(open(sys.argv[1],"rb").read()).decode(),"encoding":"base64"}))' "/tmp/preview-$action.gif" > /tmp/preview-gif.json
+            gifsha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/preview-gif.json --jq .sha)
+            echo "::warning title=Animation $action::$gifsha"
           done
       - name: Store diagnostics
         if: always()
