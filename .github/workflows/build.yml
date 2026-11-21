@@ -38,3 +38,24 @@ jobs:
         run: |
           (cd dist && zip -qr ../scarlet-veil-web.zip .)
           gh release upload "$RELEASE_TAG" scarlet-veil-web.zip --clobber
+  package-prototype:
+    # One-time bootstrap for the initial prerelease; always build its immutable tag.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/arena/175fcd9f-waifu' && contains(github.event.head_commit.message, '[package-prototype]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v0.1.0-prototype
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci && npm test && npm run build
+      - name: Attach tagged web build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          (cd dist && zip -qr ../scarlet-veil-web.zip .)
+          gh release upload v0.1.0-prototype scarlet-veil-web.zip --clobber
