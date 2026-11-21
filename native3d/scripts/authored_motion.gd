@@ -25,6 +25,9 @@ var animator: AnimationPlayer
 var mapped: Array[Dictionary] = []
 var current: String = ""
 var current_combo: int = 0
+var source_hips: int = -1
+var target_hips: int = -1
+var target_hips_rest_position: Vector3
 var valid: bool = false
 
 func setup(parent: Node3D, target: Skeleton3D) -> bool:
@@ -48,7 +51,10 @@ func setup(parent: Node3D, target: Skeleton3D) -> bool:
         mapped.append({"target": index, "source": src,
             "src_rest": source_rig.get_bone_global_rest(src).basis.get_rotation_quaternion(),
             "dst_rest": target_rig.get_bone_global_rest(index).basis.get_rotation_quaternion()})
-    valid = mapped.size() == BONE_MAP.size()
+    source_hips = source_rig.find_bone("DEF-hips")
+    target_hips = target_rig.find_bone("J_Bip_C_Hips")
+    if target_hips >= 0: target_hips_rest_position = target_rig.get_bone_pose_position(target_hips)
+    valid = mapped.size() == BONE_MAP.size() and source_hips >= 0 and target_hips >= 0
     return valid
 
 func _find(node: Node, type: String) -> Node:
@@ -76,7 +82,13 @@ func update(delta: float, speed: float, attack_progress: float, dash_progress: f
     else:
         var rate = 1.0 if desired == "Sword_Idle" else clampf(speed * 1.35, 0.55, 1.3)
         animator.advance(delta * rate)
-    var source_to_target: Quaternion = (target_rig.global_basis.inverse() * source_rig.global_basis).get_rotation_quaternion()
+    # The UAL mannequin faces +Z with its right side at -X; VRoid faces -Z
+    # with its right side at +X. Account for that 180-degree facing difference.
+    var source_to_target: Quaternion = Quaternion(Vector3.UP, PI) * (target_rig.global_basis.inverse() * source_rig.global_basis).get_rotation_quaternion()
+    var source_height = source_rig.get_bone_global_pose(source_hips).origin.y - source_rig.get_bone_global_rest(source_hips).origin.y
+    var pelvis_offset = clampf(source_height, -0.6, 0.12) if desired == "Roll" else 0.0
+    var pelvis_position = target_rig.get_bone_pose_position(target_hips)
+    target_rig.set_bone_pose_position(target_hips, pelvis_position.lerp(target_hips_rest_position + Vector3.UP * pelvis_offset, 1.0 - exp(-delta * 22.0)))
     var blend = 1.0 - exp(-delta * (26.0 if attack_progress >= 0.0 or dash_progress >= 0.0 else 14.0))
     for item in mapped:
         var source_pose = source_rig.get_bone_global_pose(item.source).basis.get_rotation_quaternion()
