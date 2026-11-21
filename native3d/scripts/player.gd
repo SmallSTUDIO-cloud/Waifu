@@ -90,7 +90,7 @@ func _attach_sword() -> void:
     anchor.add_child(grip)
     if hand < 0:
         grip.position = Vector3(0.4, 1.0, 0.0)
-    grip.rotation_degrees = Vector3(0, 0, -12)
+    grip.rotation_degrees = Vector3(0, 8, 65)
     _sword_piece(grip, Vector3(0, 0.055, 0), Vector3(0.045, 0.17, 0.045), Color(0.14, 0.065, 0.08), 0.2)
     _sword_piece(grip, Vector3(0, -0.045, 0), Vector3(0.19, 0.035, 0.09), Color(0.42, 0.25, 0.19), 0.8)
     _sword_piece(grip, Vector3(0, -0.48, 0), Vector3(0.065, 0.85, 0.035), Color(0.74, 0.82, 0.88), 0.85)
@@ -210,7 +210,8 @@ func _animate(delta: float) -> void:
     var side: float = -1.0 if combo == 2 else 1.0
     var dash: float = sin(PI * (1.0 - dash_time / DASH_DURATION)) if dash_time > 0.0 else 0.0
     var run: float = speed_ratio * (1.0 - dash * 0.5)
-    model_root.position.y = 0.018 * (1.0 - cos(visual_time * 19.0)) * run - 0.16 * dash
+    model_root.position.y = 0.018 * (1.0 - cos(visual_time * 19.0)) * run - 0.19 * dash
+    model_root.rotation.x = lerpf(model_root.rotation.x, -0.42 * dash - 0.07 * run, pose_blend)
     _pose("J_Bip_C_Hips", Vector3(0.08 * run + 0.34 * dash, swing * 0.20 * side, stride * 0.035))
     _pose("J_Bip_C_Spine", Vector3(-0.10 * run + 0.20 * dash, -swing * 0.35 * side, -stride * 0.025))
     _pose("J_Bip_C_Chest", Vector3(0.02 * sin(visual_time * 2.2), -swing * 0.28 * side, 0.08 * dash))
@@ -224,7 +225,7 @@ func _animate(delta: float) -> void:
     _pose("J_Bip_L_UpperArm", Vector3(stride * 0.12 - dash * 0.30, stride * 0.30 - 0.35 * dash, 1.12))
     _pose("J_Bip_L_LowerArm", Vector3(0, -0.20, 0.30 + 0.35 * dash))
     # Shoulder, elbow and wrist all contribute to the sword arc.
-    _pose("J_Bip_R_UpperArm", Vector3(0.0, -0.30 - stride * 0.12 + swing * 1.05 * side, -1.08 + swing * 0.42))
+    _pose("J_Bip_R_UpperArm", Vector3(-0.28 * swing if combo == 3 else 0.0, -0.30 - stride * 0.12 + swing * 1.05 * side, -1.08 + swing * (0.80 if combo == 3 else 0.42)))
     _pose("J_Bip_R_LowerArm", Vector3(0, 0.25 + swing * 0.50 * side, -0.38 - 0.25 * dash))
     _pose("J_Bip_R_Hand", Vector3(0.10, -0.15 + swing * 0.30 * side, 0.12))
     # Procedural spring on the imported secondary bones. Motion lags acceleration

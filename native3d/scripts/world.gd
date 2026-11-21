@@ -227,6 +227,13 @@ func start_game() -> void:
     player.position = Vector3(0, 0.1, 3)
     player.health = 100
     player.invulnerable = 0.0
+    player.attack_timer = 0.0
+    player.attack_cooldown = 0.0
+    player.combo = 0
+    player.combo_timeout = 0.0
+    player.dash_time = 0.0
+    player.dash_cooldown = 0.0
+    player.velocity = Vector3.ZERO
     player.enabled = true
     player.control = Vector2.ZERO
     timer = 0.0
