@@ -2,7 +2,7 @@ extends MeshInstance3D
 # Sample the actual blade after bone posing. A small, time-bounded ribbon follows
 # the weapon instead of placing a static effect in front of the character.
 const MAX_SAMPLES: int = 12
-const SAMPLE_LIFE: float = 0.18
+const SAMPLE_LIFE: float = 0.14
 var samples: Array[Dictionary] = []
 var ribbon: ImmediateMesh
 
@@ -34,8 +34,8 @@ func update_trail(delta: float, grip: Node3D, active: bool) -> void:
     for i in range(samples.size() - 1):
         var a: Dictionary = samples[i]
         var b: Dictionary = samples[i + 1]
-        var alpha_a: float = 0.75 * (1.0 - clampf(a.age / SAMPLE_LIFE, 0.0, 1.0))
-        var alpha_b: float = 0.75 * (1.0 - clampf(b.age / SAMPLE_LIFE, 0.0, 1.0))
+        var alpha_a: float = 0.56 * (1.0 - clampf(a.age / SAMPLE_LIFE, 0.0, 1.0))
+        var alpha_b: float = 0.56 * (1.0 - clampf(b.age / SAMPLE_LIFE, 0.0, 1.0))
         var a_base = to_local(a.base)
         var a_tip = to_local(a.tip)
         var b_base = to_local(b.base)

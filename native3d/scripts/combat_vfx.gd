@@ -37,8 +37,8 @@ func setup(effect_kind: String, stage: int = 1) -> void:
         for i in range(14):
             var angle = deg_to_rad(lerpf(-95.0, 95.0, i / 13.0))
             _ground_shard(mesh, angle, 1.72, 0.22 + (i % 3) * 0.07, Color(1, 0.38, 0.16, 0.75))
-        rotation_degrees.x = -18.0 if stage == 3 else 52.0
-        rotation_degrees.z = 32.0 if stage == 3 else -30.0
+        rotation_degrees.x = 60.0 if stage == 3 else 52.0
+        rotation_degrees.z = 24.0 if stage == 3 else -30.0
     elif kind == "finisher":
         _ring_band(mesh, 0.46, 0.59, 0, 360, Color(1, 0.05, 0.08, 0), Color(1, 0.35, 0.12, 0.8), false)
         _ring_band(mesh, 0.59, 0.67, 0, 360, Color(1, 0.85, 0.58, 0.9), Color(1, 0.1, 0.08, 0), false)
