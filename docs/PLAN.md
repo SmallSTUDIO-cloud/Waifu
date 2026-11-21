@@ -27,3 +27,6 @@ Genshin Impact's combat emphasizes combining elements; Punishing: Gray Raven cen
 * The first screenshot exposed a green fringe on the extracted fighter; the alpha key and green spill were corrected. Portrait combat is intentionally paused behind a rotate prompt rather than distorted.
 * The battle character is a static cutout with lightweight motion, and the enemies are procedural placeholder shapes. The synthesized motif and cues are placeholders, not a produced theme song or recorded character voices. There is no jump or jump/idle voice audio.
 * No physical-device performance, touch ergonomics, store compliance, visual-art approval or long-session playtest has yet been performed. No frame-rate guarantee is made.
+
+## Android test packaging
+The Android package is a debug-signed WebView wrapper around the same 2D prototype, with bundled assets served from an intercepted local HTTPS origin and other network requests blocked. It is not a native 3D game. GitHub Actions compiles the assets and APK. A physical Android device and Play Store signing/compliance review are still required; this test APK is not a production release.

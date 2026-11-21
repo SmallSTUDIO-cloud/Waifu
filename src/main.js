@@ -17,7 +17,7 @@ app.innerHTML = `
 <div class="orientation-notice"><div><span>↻</span><strong>ROTATE YOUR DEVICE</strong><p>Combat is designed for landscape. Rotate to continue.</p></div></div></section>`;
 const $ = id => document.getElementById(id);
 const canvas = $('canvas'), ctx = canvas.getContext('2d', { alpha: true });
-const fighter = new Image(); fighter.src = '/art/fighter.png';
+const fighter = new Image(); fighter.src = `${import.meta.env.BASE_URL}art/fighter.png`;
 let state, last = 0, active = false, paused = false, muted = false, audio, musicTimer, musicStep = 0, footTimer = 0;
 const keys = new Set(), stick = { x: 0, y: 0, pointer: null };
 const W = 1000, H = 600;

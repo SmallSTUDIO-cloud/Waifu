@@ -1,40 +1,51 @@
-name: Build prototype
+name: Android APK
 on:
   push:
   pull_request:
   workflow_dispatch:
-    inputs:
-      release_tag:
-        description: 'Existing release tag to build and attach (leave empty for build only)'
-        required: false
-        type: string
 permissions:
   contents: read
 jobs:
-  build:
+  android:
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build and test bundled game assets
+        run: |
+          npm ci
+          npm test
+          npm run build
+          mkdir -p android/app/src/main/assets/web
+          cp -R dist/. android/app/src/main/assets/web/
+      - name: Build test APK
+        run: gradle -p android assembleDebug --no-daemon
+      - name: Name APK
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk scarlet-veil-android-test.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: scarlet-veil-web
-          path: dist/
-      - name: Attach web build to existing release
-        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+          name: scarlet-veil-android-test
+          path: scarlet-veil-android-test.apk
+          if-no-files-found: error
+      - name: Publish Android prerelease
+        if: github.event_name == 'push' && github.ref == 'refs/heads/arena/175fcd9f-waifu' && contains(github.event.head_commit.message, '[android-release]')
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
-          (cd dist && zip -qr ../scarlet-veil-web.zip .)
-          gh release upload "$RELEASE_TAG" scarlet-veil-web.zip --clobber
+          gh release create v0.1.1-android scarlet-veil-android-test.apk \
+            --target "$GITHUB_SHA" --prerelease \
+            --title 'Scarlet Veil v0.1.1 — Android Test' \
+            --notes 'Android test APK for the 2D Scarlet Veil combat prototype. This is an offline WebView wrapper around the prototype, not a native 3D game. It is debug-signed for testing, not for Play Store distribution; Android 6.0 or newer is required. The build has not been tested on a physical device. See the repository README for installation and limitations.'
