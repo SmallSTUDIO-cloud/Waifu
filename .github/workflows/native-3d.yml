@@ -1,0 +1,55 @@
+name: Native 3D validation
+on:
+  push:
+    paths:
+      - 'native3d/**'
+      - '.github/workflows/native-3d.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Godot
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/bin/godot
+          key: godot-4.4.1-linux-x64
+      - name: Install Godot
+        run: |
+          if [ ! -x "$HOME/.local/bin/godot" ]; then
+            mkdir -p "$HOME/.local/bin"
+            curl -fsSL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
+            unzip -p /tmp/godot.zip Godot_v4.4.1-stable_linux.x86_64 > "$HOME/.local/bin/godot"
+            chmod +x "$HOME/.local/bin/godot"
+          fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Import and smoke test
+        run: |
+          set -o pipefail
+          godot --headless --path native3d --editor --import --quit 2>&1 | tee /tmp/import.log
+          godot --headless --path native3d --script res://tests/smoke.gd 2>&1 | tee /tmp/smoke.log
+          if grep -E 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log; then
+            echo "::error::$(grep -E 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log | head -8 | tr '\n' ' ')"
+            exit 1
+          fi
+      - name: Capture software-rendered frame
+        run: |
+          mkdir -p /tmp/frames
+          xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --write-movie /tmp/frames/frame.png --fixed-fps 30 --quit-after 15 -- --smoke-play 2>&1 | tee /tmp/render.log
+          shot=$(find /tmp/frames -name '*.png' | sort | tail -1)
+          test -n "$shot"
+          echo "SCREENSHOT=$shot" >> "$GITHUB_ENV"
+          if grep -E 'SCRIPT ERROR|^ERROR:' /tmp/render.log; then
+            echo "::error::$(grep -E 'SCRIPT ERROR|^ERROR:' /tmp/render.log | head -8 | tr '\n' ' ')"
+            exit 1
+          fi
+      - name: Store screenshot for review
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -c 'import base64,json,os; print(json.dumps({"content":base64.b64encode(open(os.environ["SCREENSHOT"],"rb").read()).decode(),"encoding":"base64"}))' > /tmp/blob.json
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/blob.json --jq .sha)
+          echo "::warning title=Visual review screenshot::$sha"

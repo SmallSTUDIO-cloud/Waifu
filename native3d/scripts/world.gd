@@ -1,0 +1,329 @@
+extends Node3D
+
+const PLAYER_SCRIPT = preload("res://scripts/player.gd")
+const ENEMY_SCRIPT = preload("res://scripts/enemy.gd")
+const JOYSTICK_SCRIPT = preload("res://scripts/joystick.gd")
+var player: CharacterBody3D
+var camera: Camera3D
+var joystick: Control
+var hud: Control
+var menu: Control
+var health_label: Label
+var count_label: Label
+var tip_label: Label
+var timer: float = 0.0
+var playing: bool = false
+var remaining: int = 0
+var slash: MeshInstance3D
+var slash_life: float = 0.0
+
+func _ready() -> void:
+    _environment()
+    _arena()
+    player = PLAYER_SCRIPT.new()
+    add_child(player)
+    player.position = Vector3(0, 0.1, 3)
+    player.health_changed.connect(_on_health)
+    player.hit_enemy.connect(_hit_enemy)
+    camera = Camera3D.new()
+    camera.current = true
+    camera.fov = 48.0
+    camera.position = Vector3(0, 7, 11)
+    add_child(camera)
+    camera.look_at(Vector3(0, 1, 0))
+    _ui()
+    _update_camera(1.0)
+    if "--smoke-play" in OS.get_cmdline_user_args():
+        start_game()
+
+func _environment() -> void:
+    var env_node = WorldEnvironment.new()
+    var env = Environment.new()
+    env.background_mode = Environment.BG_COLOR
+    env.background_color = Color(0.025, 0.045, 0.07)
+    env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+    env.ambient_light_color = Color(0.40, 0.48, 0.56)
+    env.ambient_light_energy = 0.9
+    env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+    env_node.environment = env
+    add_child(env_node)
+    var sun = DirectionalLight3D.new()
+    sun.rotation_degrees = Vector3(-55, -25, 0)
+    sun.light_color = Color(0.75, 0.83, 1.0)
+    sun.light_energy = 1.0
+    sun.shadow_enabled = false
+    add_child(sun)
+    var red = OmniLight3D.new()
+    red.position = Vector3(-5, 3, -5)
+    red.light_color = Color(1.0, 0.1, 0.16)
+    red.light_energy = 2.0
+    red.omni_range = 12.0
+    add_child(red)
+
+func _material(color: Color, metal: float = 0.0, glow: bool = false) -> StandardMaterial3D:
+    var material = StandardMaterial3D.new()
+    material.albedo_color = color
+    material.metallic = metal
+    material.roughness = 0.65
+    if glow:
+        material.emission_enabled = true
+        material.emission = color
+    return material
+
+func _box(pos: Vector3, size: Vector3, color: Color, metal: float = 0.0, glow: bool = false) -> MeshInstance3D:
+    var mesh = MeshInstance3D.new()
+    var box = BoxMesh.new()
+    box.size = size
+    mesh.mesh = box
+    mesh.material_override = _material(color, metal, glow)
+    mesh.position = pos
+    add_child(mesh)
+    return mesh
+
+func _arena() -> void:
+    var floor_body = StaticBody3D.new()
+    var shape = CollisionShape3D.new()
+    var box = BoxShape3D.new()
+    box.size = Vector3(20, 0.3, 20)
+    shape.shape = box
+    shape.position.y = -0.15
+    floor_body.add_child(shape)
+    add_child(floor_body)
+    _box(Vector3(0, -0.16, 0), Vector3(20, 0.3, 20), Color(0.09, 0.13, 0.17), 0.65)
+    for i in range(-4, 5):
+        _box(Vector3(i * 2, 0.006, 0), Vector3(0.025, 0.012, 19.8), Color(0.24, 0.29, 0.32), 0.4)
+        _box(Vector3(0, 0.007, i * 2), Vector3(19.8, 0.012, 0.025), Color(0.24, 0.29, 0.32), 0.4)
+    for side in [-1, 1]:
+        _box(Vector3(side * 9.7, 0.8, 0), Vector3(0.13, 0.12, 20), Color(0.35, 0.39, 0.42))
+        _box(Vector3(0, 0.8, side * 9.7), Vector3(20, 0.12, 0.13), Color(0.35, 0.39, 0.42))
+        for i in range(-4, 5, 2):
+            _box(Vector3(side * 9.7, 0.4, i * 2), Vector3(0.12, 0.8, 0.12), Color(0.25, 0.29, 0.32))
+            _box(Vector3(i * 2, 0.4, side * 9.7), Vector3(0.12, 0.8, 0.12), Color(0.25, 0.29, 0.32))
+    for i in range(14):
+        var x = -26.0 + i * 4.0
+        var h = 4.0 + float((i * 17) % 9)
+        _box(Vector3(x, h * 0.5 - 2.0, -22), Vector3(3.2, h, 3.0), Color(0.04 + (i % 3) * 0.01, 0.06, 0.08))
+        _box(Vector3(x, h * 0.4 - 2.0, -20.45), Vector3(0.06, h * 0.35, 0.04), Color(0.5, 0.025, 0.04), 0.0, true)
+
+func _make_label(text: String, font_size: int, color: Color = Color.WHITE) -> Label:
+    var label = Label.new()
+    label.text = text
+    label.add_theme_font_size_override("font_size", font_size)
+    label.add_theme_color_override("font_color", color)
+    label.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.75))
+    label.add_theme_constant_override("shadow_offset_x", 1)
+    label.add_theme_constant_override("shadow_offset_y", 2)
+    return label
+
+func _button(text: String, size: Vector2) -> Button:
+    var button = Button.new()
+    button.text = text
+    button.custom_minimum_size = size
+    button.add_theme_font_size_override("font_size", 22)
+    var normal = StyleBoxFlat.new()
+    normal.bg_color = Color(0.13, 0.17, 0.21, 0.9)
+    normal.border_color = Color(0.9, 0.28, 0.33)
+    normal.set_border_width_all(2)
+    normal.set_corner_radius_all(10)
+    var pressed = normal.duplicate()
+    pressed.bg_color = Color(0.65, 0.12, 0.18, 0.95)
+    button.add_theme_stylebox_override("normal", normal)
+    button.add_theme_stylebox_override("hover", normal)
+    button.add_theme_stylebox_override("pressed", pressed)
+    return button
+
+func _ui() -> void:
+    var layer = CanvasLayer.new()
+    add_child(layer)
+    hud = Control.new()
+    hud.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    hud.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    layer.add_child(hud)
+    count_label = _make_label("HOSTILES  0 / 4", 20)
+    count_label.position = Vector2(30, 26)
+    hud.add_child(count_label)
+    health_label = _make_label("HP  100", 20)
+    health_label.position = Vector2(30, 55)
+    hud.add_child(health_label)
+    tip_label = _make_label("Move  •  Attack  •  Dodge red warnings", 17, Color(0.8, 0.86, 0.9))
+    tip_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+    tip_label.offset_left = -170
+    tip_label.offset_top = 28
+    tip_label.offset_right = 200
+    tip_label.offset_bottom = 58
+    hud.add_child(tip_label)
+    joystick = Control.new()
+    joystick.set_script(JOYSTICK_SCRIPT)
+    joystick.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+    joystick.offset_left = 36
+    joystick.offset_right = 196
+    joystick.offset_top = -196
+    joystick.offset_bottom = -36
+    hud.add_child(joystick)
+    var attack = _button("ATTACK", Vector2(130, 100))
+    attack.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+    attack.offset_left = -166
+    attack.offset_right = -36
+    attack.offset_top = -140
+    attack.offset_bottom = -40
+    hud.add_child(attack)
+    attack.button_down.connect(_attack)
+    var dodge = _button("DODGE", Vector2(110, 76))
+    dodge.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+    dodge.offset_left = -298
+    dodge.offset_right = -188
+    dodge.offset_top = -118
+    dodge.offset_bottom = -42
+    hud.add_child(dodge)
+    dodge.button_down.connect(_dodge)
+    var pause_button = _button("II", Vector2(64, 56))
+    pause_button.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+    pause_button.offset_left = -92
+    pause_button.offset_right = -28
+    pause_button.offset_top = 24
+    pause_button.offset_bottom = 80
+    hud.add_child(pause_button)
+    pause_button.pressed.connect(_pause)
+    hud.visible = false
+    menu = Control.new()
+    menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    layer.add_child(menu)
+    _show_menu("SCARLET VEIL", "NATIVE 3D COMBAT TEST  /  OPERATION NIGHTFALL", "DEPLOY")
+
+func _show_menu(title: String, subtitle: String, action: String) -> void:
+    for child in menu.get_children():
+        child.queue_free()
+    menu.visible = true
+    var shade = ColorRect.new()
+    shade.color = Color(0.02, 0.035, 0.05, 0.72)
+    shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+    menu.add_child(shade)
+    var column = VBoxContainer.new()
+    column.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
+    column.offset_left = -300
+    column.offset_right = 300
+    column.offset_top = -125
+    column.offset_bottom = 125
+    column.add_theme_constant_override("separation", 15)
+    menu.add_child(column)
+    var kicker = _make_label("SMALL STUDIO  /  SCARLET VEIL", 17, Color(0.96, 0.32, 0.38))
+    column.add_child(kicker)
+    var heading = _make_label(title, 54)
+    column.add_child(heading)
+    column.add_child(_make_label(subtitle, 18, Color(0.76, 0.82, 0.85)))
+    var button = _button(action, Vector2(260, 60))
+    column.add_child(button)
+    button.pressed.connect(start_game)
+
+func start_game() -> void:
+    for node in get_tree().get_nodes_in_group("enemies"):
+        node.queue_free()
+    player.position = Vector3(0, 0.1, 3)
+    player.health = 100
+    player.invulnerable = 0.0
+    player.enabled = true
+    player.control = Vector2.ZERO
+    timer = 0.0
+    remaining = 4
+    for i in range(4):
+        var enemy = ENEMY_SCRIPT.new()
+        enemy.target = player
+        add_child(enemy)
+        enemy.position = Vector3((float(i) - 1.5) * 2.0, 0.1, -3.5)
+        enemy.enabled = true
+        enemy.defeated.connect(_on_defeated)
+    menu.visible = false
+    hud.visible = true
+    playing = true
+    _on_health(100)
+    _refresh_count()
+
+func _physics_process(delta: float) -> void:
+    if not playing:
+        return
+    timer += delta
+    var keyboard = Vector2.ZERO
+    if Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT): keyboard.x -= 1.0
+    if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT): keyboard.x += 1.0
+    if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP): keyboard.y -= 1.0
+    if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): keyboard.y += 1.0
+    player.control = (joystick.direction + keyboard).limit_length(1.0)
+    _update_camera(delta)
+    if slash_life > 0:
+        slash_life -= delta
+        if slash_life <= 0 and is_instance_valid(slash): slash.queue_free()
+    if timer > 8.0: tip_label.visible = false
+
+func _update_camera(delta: float) -> void:
+    var desired = player.global_position + Vector3(0, 6.4, 8.5)
+    camera.global_position = camera.global_position.lerp(desired, minf(1.0, delta * 5.0))
+    camera.look_at(player.global_position + Vector3(0, 1.0, -0.7))
+
+func _unhandled_key_input(event: InputEvent) -> void:
+    if event is InputEventKey and event.pressed and not event.echo:
+        if event.keycode == KEY_J: _attack()
+        elif event.keycode == KEY_SPACE: _dodge()
+        elif event.keycode == KEY_ESCAPE: _pause()
+
+func _attack() -> void:
+    if not playing: return
+    player.attack()
+    if is_instance_valid(slash): slash.queue_free()
+    slash = MeshInstance3D.new()
+    var torus = TorusMesh.new()
+    torus.inner_radius = 1.1
+    torus.outer_radius = 1.16
+    torus.rings = 20
+    torus.ring_segments = 8
+    slash.mesh = torus
+    slash.material_override = _material(Color(1.0, 0.12, 0.18), 0.0, true)
+    slash.position = player.position + player.facing * 1.0 + Vector3(0, 0.9, 0)
+    slash.rotation_degrees.x = 60
+    add_child(slash)
+    slash_life = 0.16
+
+func _dodge() -> void:
+    if playing: player.dodge()
+
+func _hit_enemy(enemy: Node3D, damage: int) -> void:
+    if is_instance_valid(enemy): enemy.take_damage(damage)
+
+func _on_defeated() -> void:
+    remaining -= 1
+    _refresh_count()
+    if remaining <= 0:
+        playing = false
+        player.enabled = false
+        hud.visible = false
+        _show_menu("ROOFTOP SECURE", "COMBAT TEST COMPLETE  /  %d SECONDS" % int(timer), "RETRY")
+
+func _on_health(value: int) -> void:
+    health_label.text = "HP  %d" % value
+    if value <= 0 and playing:
+        playing = false
+        player.enabled = false
+        hud.visible = false
+        for enemy in get_tree().get_nodes_in_group("enemies"): enemy.enabled = false
+        _show_menu("MISSION FAILED", "REGROUP AND TRY AGAIN", "RETRY")
+
+func _refresh_count() -> void:
+    count_label.text = "HOSTILES  %d / 4" % remaining
+
+func _pause() -> void:
+    if not playing: return
+    playing = false
+    player.enabled = false
+    hud.visible = false
+    for enemy in get_tree().get_nodes_in_group("enemies"): enemy.enabled = false
+    _show_menu("PAUSED", "RETURN TO THE ROOFTOP WHEN READY", "RESUME")
+    var column = menu.get_child(menu.get_child_count() - 1)
+    var button = column.get_child(column.get_child_count() - 1)
+    button.pressed.disconnect(start_game)
+    button.pressed.connect(_resume)
+
+func _resume() -> void:
+    menu.visible = false
+    hud.visible = true
+    player.enabled = true
+    for enemy in get_tree().get_nodes_in_group("enemies"): enemy.enabled = true
+    playing = true
