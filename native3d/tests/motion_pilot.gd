@@ -55,6 +55,21 @@ func run_test() -> void:
             printerr("FAIL: anatomical retarget direction: ", pair)
             quit(1)
             return
+    driver.update(0.02, 0.61, -1.0, -1.0, 0)
+    if driver.current != "Jog_Fwd":
+        printerr("FAIL: jog hysteresis")
+        quit(1)
+        return
+    driver.update(0.02, 0.50, -1.0, -1.0, 0)
+    if driver.current != "Walk":
+        printerr("FAIL: jog-to-walk transition")
+        quit(1)
+        return
+    driver.update(0.02, 0.10, -1.0, -1.0, 0)
+    if driver.current != "Walk":
+        printerr("FAIL: walk hysteresis")
+        quit(1)
+        return
     driver.update(0.1, 0.0, 0.4, -1.0, 1)
     if driver.current != "Sword_Attack":
         printerr("FAIL: attack state")

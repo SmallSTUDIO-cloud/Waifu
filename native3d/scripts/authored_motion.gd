@@ -71,14 +71,26 @@ func _find(node: Node, type: String) -> Node:
 func update(delta: float, speed: float, attack_progress: float, dash_progress: float, combo: int) -> void:
     if not valid: return
     var desired = "Sword_Idle"
-    if dash_progress >= 0.0: desired = "Roll"
-    elif attack_progress >= 0.0: desired = "Sword_Attack"
-    elif speed > 0.62: desired = "Jog_Fwd"
-    elif speed > 0.10: desired = "Walk"
+    if dash_progress >= 0.0:
+        desired = "Roll"
+    elif attack_progress >= 0.0:
+        desired = "Sword_Attack"
+    elif current == "Jog_Fwd" and speed > 0.55:
+        desired = "Jog_Fwd"
+    elif current == "Walk" and speed > 0.07:
+        desired = "Jog_Fwd" if speed > 0.72 else "Walk"
+    elif speed > 0.72:
+        desired = "Jog_Fwd"
+    elif speed > 0.16:
+        desired = "Walk"
     if desired != current or (desired == "Sword_Attack" and current_combo != combo):
+        var sync_gait = current in ["Walk", "Jog_Fwd"] and desired in ["Walk", "Jog_Fwd"]
+        var phase = animator.current_animation_position / maxf(animator.current_animation_length, 0.001) if sync_gait else 0.0
         current = desired
         current_combo = combo
         animator.play(desired)
+        if sync_gait:
+            animator.seek(phase * animator.get_animation(desired).length, true)
     if desired == "Sword_Attack":
         animator.seek(clampf(attack_progress, 0.0, 1.0) * animator.current_animation_length, true)
     elif desired == "Roll":

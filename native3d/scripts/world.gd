@@ -37,12 +37,18 @@ func _ready() -> void:
     _ui()
     _update_camera(1.0)
     var args = OS.get_cmdline_user_args()
-    if "--smoke-play" in args or "--preview-move" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args:
+    if "--smoke-play" in args or "--preview-move" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args or "--preview-grip" in args:
         start_game()
     if "--preview-move" in args: preview_mode = "move"
     if "--preview-attack" in args: preview_mode = "attack"
     if "--preview-dodge" in args: preview_mode = "dodge"
     if "--preview-combo" in args: preview_mode = "combo"
+    if "--preview-grip" in args:
+        preview_mode = "grip"
+        hud.visible = false
+        for enemy in get_tree().get_nodes_in_group("enemies"):
+            enemy.enabled = false
+            enemy.visible = false
     if "--preview-impact" in args:
         preview_mode = "impact"
         var enemies = get_tree().get_nodes_in_group("enemies")
@@ -238,6 +244,7 @@ func start_game() -> void:
     player.attack_cooldown = 0.0
     player.attack_buffered = false
     if player.sword_trail: player.sword_trail.clear_trail()
+    if player.secondary_motion: player.secondary_motion.reset()
     player.combo = 0
     player.combo_timeout = 0.0
     player.dash_time = 0.0
@@ -284,6 +291,11 @@ func _physics_process(delta: float) -> void:
     if timer > 8.0: tip_label.visible = false
 
 func _update_camera(delta: float) -> void:
+    if preview_mode == "grip" and is_instance_valid(player.sword_grip):
+        var focus = player.sword_grip.global_position
+        camera.global_position = focus + Vector3(0.60, 0.18, 0.80)
+        camera.look_at(focus, Vector3.UP)
+        return
     var camera_offset = Vector3(0, 3.5, 5.3)
     if preview_mode != "": camera_offset = Vector3(0, 2.0, 2.8)
     var desired = player.global_position + camera_offset
@@ -303,7 +315,12 @@ func _attack() -> void:
         player.attack()
 
 func _spawn_vfx(kind: String, location: Vector3, stage: int = 1) -> Node3D:
+    # Keep transient geometry bounded when hitting several enemies at once.
+    var active_effects = get_tree().get_nodes_in_group("combat_effects").filter(func(node): return not node.is_queued_for_deletion())
+    if active_effects.size() >= 12:
+        active_effects[0].queue_free()
     var effect = COMBAT_VFX.new()
+    effect.add_to_group("combat_effects")
     effect.setup(kind, stage)
     add_child(effect)
     effect.global_position = location
@@ -311,7 +328,14 @@ func _spawn_vfx(kind: String, location: Vector3, stage: int = 1) -> Node3D:
 
 func _swing_vfx(stage: int) -> void:
     var effect = _spawn_vfx("slash", player.global_position + Vector3(0, 1.0, 0), stage)
-    effect.rotation.y = atan2(-player.facing.x, -player.facing.z)
+    var yaw = atan2(-player.facing.x, -player.facing.z)
+    effect.rotation.y = yaw
+    if stage >= 2:
+        var echo = _spawn_vfx("echo", player.global_position + Vector3(0, 1.0, 0), stage)
+        echo.rotation.y = yaw
+    if stage == 3:
+        _spawn_vfx("finisher", player.global_position + Vector3(0, 0.035, 0), stage)
+        camera_kick = maxf(camera_kick, 0.45)
 
 func _dodge() -> void:
     if playing and player.dodge():
@@ -324,7 +348,7 @@ func _hit_enemy(enemy: Node3D, damage: int) -> void:
         # its opaque mesh, so depth testing does not hide the hit feedback.
         var hit_center = enemy.global_position + Vector3(0, 1.0, 0)
         var toward_camera = (camera.global_position - hit_center).normalized()
-        var effect = _spawn_vfx("impact", hit_center + toward_camera * 0.55)
+        var effect = _spawn_vfx("impact", hit_center + toward_camera * 0.55, player.combo)
         effect.look_at(camera.global_position, Vector3.UP)
         enemy.take_damage(damage)
 

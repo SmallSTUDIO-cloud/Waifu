@@ -32,7 +32,8 @@ jobs:
           godot --headless --path native3d --editor --import --quit 2>&1 | tee /tmp/import.log
           godot --headless --path native3d --script res://tests/smoke.gd 2>&1 | tee /tmp/smoke.log
           godot --headless --path native3d --script res://tests/motion_pilot.gd 2>&1 | tee /tmp/motion-pilot.log
-          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log | grep -v 'Parameter "t" is null' || true)
+          godot --headless --path native3d --script res://tests/secondary_vfx.gd 2>&1 | tee /tmp/secondary-vfx.log
+          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log | grep -v 'Parameter "t" is null' || true)
           if [ -n "$errors" ]; then
             echo "::error::$errors"
             exit 1
@@ -60,7 +61,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 -m pip install --quiet Pillow
-          for action in authored-move authored-combo authored-dodge authored-impact; do
+          for action in authored-move authored-combo authored-grip authored-impact; do
             mkdir -p "/tmp/preview-$action"
             frames=30
             if [[ "$action" = *combo ]]; then frames=48; fi
@@ -98,7 +99,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/render.log 2>/dev/null > /tmp/diagnostics.txt || true
+          cat /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/render.log 2>/dev/null > /tmp/diagnostics.txt || true
           python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/diagnostics.txt","rb").read()).decode(),"encoding":"base64"}))' > /tmp/diagnostics.json
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/diagnostics.json --jq .sha)
           echo "::warning title=Diagnostics::$sha"

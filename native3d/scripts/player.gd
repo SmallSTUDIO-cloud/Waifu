@@ -5,7 +5,7 @@ signal hit_enemy(enemy: Node3D, damage: int)
 signal attack_swing(stage: int)
 
 const AVATAR = preload("res://assets/avatar.glb")
-const SPRING = preload("res://scripts/spring.gd")
+const SECONDARY = preload("res://scripts/secondary_motion.gd")
 const SWORD_TRAIL = preload("res://scripts/sword_trail.gd")
 const AUTHORED_MOTION = preload("res://scripts/authored_motion.gd")
 const SPEED: float = 4.1
@@ -28,11 +28,7 @@ var model_root: Node3D
 var skeleton: Skeleton3D
 var bone_rest: Dictionary = {}
 var bone_indices: Dictionary = {}
-var hair_bones: Array[int] = []
-var skirt_bones: Array[int] = []
-var body_bones: Array[int] = []
-var springs: Dictionary = {}
-var previous_motion: Vector3 = Vector3.ZERO
+var secondary_motion: RefCounted
 var visual_time: float = 0.0
 var speed_ratio: float = 0.0
 var enabled: bool = false
@@ -65,15 +61,8 @@ func _ready() -> void:
             var bone_name: String = skeleton.get_bone_name(i)
             bone_rest[i] = skeleton.get_bone_pose_rotation(i)
             bone_indices[bone_name] = i
-            if bone_name.begins_with("HairJoint"):
-                hair_bones.append(i)
-                springs[i] = SPRING.new()
-            elif bone_name.begins_with("J_Sec_") and "Skirt" in bone_name:
-                skirt_bones.append(i)
-                springs[i] = SPRING.new()
-            elif bone_name.begins_with("J_Sec_") and "Bust" in bone_name:
-                body_bones.append(i)
-                springs[i] = SPRING.new()
+        secondary_motion = SECONDARY.new()
+        secondary_motion.setup(skeleton)
         _attach_sword()
         sword_trail = SWORD_TRAIL.new()
         add_child(sword_trail)
@@ -113,11 +102,56 @@ func _attach_sword() -> void:
     anchor.add_child(grip)
     if hand < 0:
         grip.position = Vector3(0.4, 1.0, 0.0)
-    grip.rotation_degrees = Vector3(0, 8, 65)
+    if hand >= 0:
+        grip.position = Vector3(0.038, 0.0, -0.005)
+    grip.rotation_degrees = Vector3(0, 8, 35)
+    _pose_gripping_fingers()
     _sword_piece(grip, Vector3(0, 0.055, 0), Vector3(0.045, 0.17, 0.045), Color(0.14, 0.065, 0.08), 0.2)
     _sword_piece(grip, Vector3(0, -0.045, 0), Vector3(0.19, 0.035, 0.09), Color(0.42, 0.25, 0.19), 0.8)
-    _sword_piece(grip, Vector3(0, -0.48, 0), Vector3(0.065, 0.85, 0.035), Color(0.74, 0.82, 0.88), 0.85)
-    _sword_piece(grip, Vector3(0, -0.48, -0.019), Vector3(0.012, 0.8, 0.009), Color(0.8, 0.055, 0.1), 0.3, true)
+    _make_blade(grip)
+    _sword_piece(grip, Vector3(0.008, -0.48, -0.014), Vector3(0.009, 0.73, 0.006), Color(0.8, 0.055, 0.1), 0.3, true)
+
+func _pose_gripping_fingers() -> void:
+    # VRoid fingers are unanimated by the motion source. Curl them around the
+    # handle instead of leaving the hand in the imported open T-pose.
+    for finger in ["Index", "Middle", "Ring", "Little"]:
+        for part in range(1, 4):
+            var bone = skeleton.find_bone("J_Bip_R_%s%d" % [finger, part])
+            if bone >= 0:
+                var curl = 0.70 if part == 1 else 0.82
+                skeleton.set_bone_pose_rotation(bone, bone_rest[bone] * Quaternion(Vector3.FORWARD, curl))
+    for part in range(1, 4):
+        var bone = skeleton.find_bone("J_Bip_R_Thumb%d" % part)
+        if bone >= 0:
+            skeleton.set_bone_pose_rotation(bone, bone_rest[bone] * Quaternion.from_euler(Vector3(0, -0.28, -0.35)))
+
+func _make_blade(parent: Node3D) -> void:
+    # A thin, tapered prism reads as a blade instead of a box at close range.
+    var outline = [Vector2(-0.034, -0.10), Vector2(0.034, -0.10),
+        Vector2(0.032, -0.84), Vector2(0.005, -1.03), Vector2(-0.025, -0.93)]
+    var surface = SurfaceTool.new()
+    surface.begin(Mesh.PRIMITIVE_TRIANGLES)
+    for side in [-1.0, 1.0]:
+        for i in range(1, outline.size() - 1):
+            var order = [0, i + 1, i] if side < 0 else [0, i, i + 1]
+            for index in order:
+                var point: Vector2 = outline[index]
+                surface.add_vertex(Vector3(point.x, point.y, side * 0.011))
+    for i in range(outline.size()):
+        var a: Vector2 = outline[i]
+        var b: Vector2 = outline[(i + 1) % outline.size()]
+        var v0 = Vector3(a.x, a.y, -0.011); var v1 = Vector3(b.x, b.y, -0.011)
+        var v2 = Vector3(a.x, a.y, 0.011); var v3 = Vector3(b.x, b.y, 0.011)
+        for vertex in [v0, v1, v2, v1, v3, v2]: surface.add_vertex(vertex)
+    surface.generate_normals()
+    var blade = MeshInstance3D.new()
+    blade.mesh = surface.commit()
+    var material = StandardMaterial3D.new()
+    material.albedo_color = Color(0.74, 0.82, 0.88)
+    material.metallic = 0.82
+    material.roughness = 0.25
+    blade.material_override = material
+    parent.add_child(blade)
 
 func _sword_piece(parent: Node3D, pos: Vector3, size: Vector3, color: Color, metal: float, glow: bool = false) -> void:
     var piece = MeshInstance3D.new()
@@ -284,18 +318,5 @@ func _animate(delta: float) -> void:
         _pose("J_Bip_R_UpperArm", Vector3(-0.32 * swing if combo == 3 else -0.10 * swing, -0.30 - stride * 0.12 + swing * 1.15 * side, -1.08 + arm_raise * (1.20 if combo == 3 else 0.95)))
         _pose("J_Bip_R_LowerArm", Vector3(0, 0.25 + swing * 0.70 * side, -0.38 - 0.25 * dash - 0.15 * arm_raise))
         _pose("J_Bip_R_Hand", Vector3(0.10, -0.15 + swing * 0.30 * side, 0.12))
-    # Procedural spring on the imported secondary bones. Motion lags acceleration
-    # and settles with damping; limits prevent instability at low mobile frame rates.
-    var current_motion: Vector3 = Vector3(velocity.x, 0.0, velocity.z)
-    var acceleration: Vector3 = (current_motion - previous_motion).limit_length(8.0)
-    previous_motion = current_motion
-    var lag: float = clampf(speed_ratio * 0.09 + acceleration.length() * 0.009, 0.0, 0.18)
-    for index in hair_bones:
-        var hair_angle: float = springs[index].step(lag * 0.5, delta, 26.0, 7.0, 0.16)
-        skeleton.set_bone_pose_rotation(index, bone_rest[index] * Quaternion(Vector3.RIGHT, hair_angle))
-    for index in skirt_bones:
-        var cloth_angle: float = springs[index].step(lag * 0.3, delta, 34.0, 9.0, 0.12)
-        skeleton.set_bone_pose_rotation(index, bone_rest[index] * Quaternion(Vector3.RIGHT, cloth_angle))
-    for index in body_bones:
-        var body_angle: float = springs[index].step(lag * 0.08, delta, 45.0, 11.0, 0.035)
-        skeleton.set_bone_pose_rotation(index, bone_rest[index] * Quaternion(Vector3.RIGHT, body_angle))
+    if secondary_motion:
+        secondary_motion.update(delta)
