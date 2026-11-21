@@ -53,3 +53,12 @@ jobs:
           python3 -c 'import base64,json,os; print(json.dumps({"content":base64.b64encode(open(os.environ["SCREENSHOT"],"rb").read()).decode(),"encoding":"base64"}))' > /tmp/blob.json
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/blob.json --jq .sha)
           echo "::warning title=Visual review screenshot::$sha"
+      - name: Store diagnostics
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cat /tmp/import.log /tmp/smoke.log /tmp/render.log 2>/dev/null > /tmp/diagnostics.txt || true
+          python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/diagnostics.txt","rb").read()).decode(),"encoding":"base64"}))' > /tmp/diagnostics.json
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/diagnostics.json --jq .sha)
+          echo "::warning title=Diagnostics::$sha"
