@@ -110,8 +110,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create v0.3.0-native3d native3d/build/scarlet-veil-3d-test.apk \
-            --target "$GITHUB_SHA" --prerelease --title 'Scarlet Veil v0.3.0 — Native 3D Test' \
+          gh release create v0.3.1-native3d native3d/build/scarlet-veil-3d-test.apk \
+            --target "$GITHUB_SHA" --prerelease --title 'Scarlet Veil v0.3.1 — Native 3D Test' \
             --notes 'Early Godot native 3D combat test. Features a third-party CC0 rigged character, procedural animation and bounded secondary-motion springs, four placeholder enemies, sword attacks and dodging. This is not the final character, final art, full VRM physics, or a production game. Debug-signed for sideloading and not yet tested on physical Android hardware. See native3d/README.md and native3d/ASSET_LICENSES.md.'
       - name: Store export diagnostics on failure
         if: failure()
