@@ -320,8 +320,12 @@ func _dodge() -> void:
 func _hit_enemy(enemy: Node3D, damage: int) -> void:
     if is_instance_valid(enemy):
         camera_kick = 1.0 if damage > 1 else 0.65
-        var effect = _spawn_vfx("impact", enemy.global_position + Vector3(0, 1.0, 0))
-        effect.rotation.y = camera.rotation.y
+        # Place sparks just in front of the target surface rather than inside
+        # its opaque mesh, so depth testing does not hide the hit feedback.
+        var hit_center = enemy.global_position + Vector3(0, 1.0, 0)
+        var toward_camera = (camera.global_position - hit_center).normalized()
+        var effect = _spawn_vfx("impact", hit_center + toward_camera * 0.55)
+        effect.look_at(camera.global_position, Vector3.UP)
         enemy.take_damage(damage)
 
 func _on_defeated() -> void:

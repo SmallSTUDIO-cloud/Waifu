@@ -41,9 +41,17 @@ func run_test() -> void:
     scene.player.attack()
     for i in range(15): await physics_frame
     var saw_effect = false
+    var impact_in_front = false
     for child in scene.get_children():
         if child.get_script() == load("res://scripts/combat_vfx.gd"):
             saw_effect = true
+            if child.kind == "impact":
+                var center = enemies[0].global_position + Vector3(0, 1, 0)
+                impact_in_front = (child.global_position - center).dot((scene.camera.global_position - center).normalized()) > 0.3
+    if not impact_in_front:
+        printerr("FAIL: impact is missing or hidden inside the target")
+        quit(1)
+        return
     if not saw_effect:
         printerr("FAIL: attack impact effect missing")
         quit(1)
