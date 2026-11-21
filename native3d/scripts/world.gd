@@ -263,9 +263,11 @@ func _physics_process(delta: float) -> void:
     if timer > 8.0: tip_label.visible = false
 
 func _update_camera(delta: float) -> void:
-    var desired = player.global_position + Vector3(0, 3.5, 5.3)
+    var camera_offset = Vector3(0, 3.5, 5.3)
+    if preview_mode != "": camera_offset = Vector3(0, 2.0, 2.8)
+    var desired = player.global_position + camera_offset
     camera.global_position = camera.global_position.lerp(desired, minf(1.0, delta * 5.0))
-    camera.look_at(player.global_position + Vector3(0, 1.15, -1.0))
+    camera.look_at(player.global_position + Vector3(0, 1.0, -0.25 if preview_mode != "" else -1.0))
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and not event.echo:

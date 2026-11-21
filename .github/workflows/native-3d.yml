@@ -60,7 +60,9 @@ jobs:
         run: |
           for action in move attack dodge; do
             mkdir -p "/tmp/preview-$action"
-            xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --write-movie "/tmp/preview-$action/frame.png" --fixed-fps 30 --quit-after 12 -- "--preview-$action" > "/tmp/preview-$action.log" 2>&1
+            frames=12
+            if [ "$action" = dodge ]; then frames=7; fi
+            xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --write-movie "/tmp/preview-$action/frame.png" --fixed-fps 30 --quit-after "$frames" -- "--preview-$action" > "/tmp/preview-$action.log" 2>&1
             if grep -E 'SCRIPT ERROR|^ERROR:' "/tmp/preview-$action.log"; then exit 1; fi
             shot=$(find "/tmp/preview-$action" -name '*.png' | sort | tail -1)
             test -n "$shot"
