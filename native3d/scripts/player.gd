@@ -7,6 +7,7 @@ signal attack_swing(stage: int)
 const AVATAR = preload("res://assets/avatar.glb")
 const SPRING = preload("res://scripts/spring.gd")
 const SWORD_TRAIL = preload("res://scripts/sword_trail.gd")
+const AUTHORED_MOTION = preload("res://scripts/authored_motion.gd")
 const SPEED: float = 4.1
 const DASH_SPEED: float = 10.0
 const ATTACK_DURATION: float = 0.48
@@ -42,6 +43,7 @@ var attack_buffered: bool = false
 var dash_direction: Vector3 = Vector3.FORWARD
 var sword_grip: Node3D
 var sword_trail: MeshInstance3D
+var motion_driver: RefCounted
 
 func _ready() -> void:
     collision_layer = 2
@@ -75,6 +77,12 @@ func _ready() -> void:
         _attach_sword()
         sword_trail = SWORD_TRAIL.new()
         add_child(sword_trail)
+        if "--preview-authored" in OS.get_cmdline_user_args():
+            var candidate = AUTHORED_MOTION.new()
+            if candidate.setup(model_root, skeleton):
+                motion_driver = candidate
+            else:
+                push_error("Authored motion skeleton mapping incomplete")
 
 func _find_skeleton(node: Node) -> Skeleton3D:
     if node is Skeleton3D:
@@ -240,34 +248,39 @@ func _animate(delta: float) -> void:
     # Phase follows actual ground speed, so a slow stick deflection doesn't
     # produce a fast running cycle while the character barely moves.
     gait_phase = fposmod(gait_phase + delta * speed_ratio * 9.5, TAU)
-    var gait: float = sin(gait_phase)
-    var stride: float = gait * speed_ratio
-    var lift_l: float = pow(maxf(0.0, -gait), 1.3) * speed_ratio
-    var lift_r: float = pow(maxf(0.0, gait), 1.3) * speed_ratio
-    var swing: float = _attack_pose()
-    var side: float = -1.0 if combo == 2 else 1.0
-    var arm_raise: float = clampf(absf(swing) * 1.3, 0.0, 1.0)
-    var dash: float = sin(PI * (1.0 - dash_time / DASH_DURATION)) if dash_time > 0.0 else 0.0
-    var run: float = speed_ratio * (1.0 - dash * 0.5)
-    model_root.position.y = 0.018 * (1.0 - cos(gait_phase * 2.0)) * run - 0.19 * dash
-    model_root.rotation.x = lerpf(model_root.rotation.x, -0.42 * dash - 0.08 * run, pose_blend)
-    model_root.rotation.z = lerpf(model_root.rotation.z, turn_lean, pose_blend)
-    _pose("J_Bip_C_Hips", Vector3(0.08 * run + 0.34 * dash, swing * 0.20 * side + stride * 0.075, stride * 0.05))
-    _pose("J_Bip_C_Spine", Vector3(-0.10 * run + 0.20 * dash - arm_raise * 0.08, -swing * 0.45 * side, -stride * 0.025 - swing * 0.08))
-    _pose("J_Bip_C_Chest", Vector3(0.025 * sin(visual_time * 2.2) * (1.0 - run), -swing * 0.28 * side - stride * 0.08, 0.08 * dash))
-    _pose("J_Bip_C_Head", Vector3(-0.12 * dash, swing * 0.12 * side, 0.0))
-    _pose("J_Bip_L_UpperLeg", Vector3(stride * 0.62 - 0.65 * dash, 0, -0.04))
-    _pose("J_Bip_R_UpperLeg", Vector3(-stride * 0.62 + 0.40 * dash, 0, 0.04))
-    _pose("J_Bip_L_LowerLeg", Vector3(-lift_l * 0.70 - 0.75 * dash, 0, 0))
-    _pose("J_Bip_R_LowerLeg", Vector3(-lift_r * 0.70 - 0.35 * dash, 0, 0))
-    _pose("J_Bip_L_Foot", Vector3(lift_l * 0.35 + 0.15 * dash, 0, 0))
-    _pose("J_Bip_R_Foot", Vector3(lift_r * 0.35 + 0.15 * dash, 0, 0))
-    _pose("J_Bip_L_UpperArm", Vector3(-0.08 - dash * 0.30, stride * 0.36 - 0.35 * dash - swing * 0.20 * side, 1.12))
-    _pose("J_Bip_L_LowerArm", Vector3(0, -0.20, 0.30 + 0.35 * dash))
-    # Shoulder, elbow and wrist all contribute to the sword arc.
-    _pose("J_Bip_R_UpperArm", Vector3(-0.32 * swing if combo == 3 else -0.10 * swing, -0.30 - stride * 0.12 + swing * 1.15 * side, -1.08 + arm_raise * (1.20 if combo == 3 else 0.95)))
-    _pose("J_Bip_R_LowerArm", Vector3(0, 0.25 + swing * 0.70 * side, -0.38 - 0.25 * dash - 0.15 * arm_raise))
-    _pose("J_Bip_R_Hand", Vector3(0.10, -0.15 + swing * 0.30 * side, 0.12))
+    if motion_driver:
+        var attack_progress = 1.0 - attack_timer / ATTACK_DURATION if attack_timer > 0.0 else -1.0
+        var dash_progress = 1.0 - dash_time / DASH_DURATION if dash_time > 0.0 else -1.0
+        motion_driver.update(delta, speed_ratio, attack_progress, dash_progress, combo)
+    else:
+        var gait: float = sin(gait_phase)
+        var stride: float = gait * speed_ratio
+        var lift_l: float = pow(maxf(0.0, -gait), 1.3) * speed_ratio
+        var lift_r: float = pow(maxf(0.0, gait), 1.3) * speed_ratio
+        var swing: float = _attack_pose()
+        var side: float = -1.0 if combo == 2 else 1.0
+        var arm_raise: float = clampf(absf(swing) * 1.3, 0.0, 1.0)
+        var dash: float = sin(PI * (1.0 - dash_time / DASH_DURATION)) if dash_time > 0.0 else 0.0
+        var run: float = speed_ratio * (1.0 - dash * 0.5)
+        model_root.position.y = 0.018 * (1.0 - cos(gait_phase * 2.0)) * run - 0.19 * dash
+        model_root.rotation.x = lerpf(model_root.rotation.x, -0.42 * dash - 0.08 * run, pose_blend)
+        model_root.rotation.z = lerpf(model_root.rotation.z, turn_lean, pose_blend)
+        _pose("J_Bip_C_Hips", Vector3(0.08 * run + 0.34 * dash, swing * 0.20 * side + stride * 0.075, stride * 0.05))
+        _pose("J_Bip_C_Spine", Vector3(-0.10 * run + 0.20 * dash - arm_raise * 0.08, -swing * 0.45 * side, -stride * 0.025 - swing * 0.08))
+        _pose("J_Bip_C_Chest", Vector3(0.025 * sin(visual_time * 2.2) * (1.0 - run), -swing * 0.28 * side - stride * 0.08, 0.08 * dash))
+        _pose("J_Bip_C_Head", Vector3(-0.12 * dash, swing * 0.12 * side, 0.0))
+        _pose("J_Bip_L_UpperLeg", Vector3(stride * 0.62 - 0.65 * dash, 0, -0.04))
+        _pose("J_Bip_R_UpperLeg", Vector3(-stride * 0.62 + 0.40 * dash, 0, 0.04))
+        _pose("J_Bip_L_LowerLeg", Vector3(-lift_l * 0.70 - 0.75 * dash, 0, 0))
+        _pose("J_Bip_R_LowerLeg", Vector3(-lift_r * 0.70 - 0.35 * dash, 0, 0))
+        _pose("J_Bip_L_Foot", Vector3(lift_l * 0.35 + 0.15 * dash, 0, 0))
+        _pose("J_Bip_R_Foot", Vector3(lift_r * 0.35 + 0.15 * dash, 0, 0))
+        _pose("J_Bip_L_UpperArm", Vector3(-0.08 - dash * 0.30, stride * 0.36 - 0.35 * dash - swing * 0.20 * side, 1.12))
+        _pose("J_Bip_L_LowerArm", Vector3(0, -0.20, 0.30 + 0.35 * dash))
+        # Shoulder, elbow and wrist all contribute to the sword arc.
+        _pose("J_Bip_R_UpperArm", Vector3(-0.32 * swing if combo == 3 else -0.10 * swing, -0.30 - stride * 0.12 + swing * 1.15 * side, -1.08 + arm_raise * (1.20 if combo == 3 else 0.95)))
+        _pose("J_Bip_R_LowerArm", Vector3(0, 0.25 + swing * 0.70 * side, -0.38 - 0.25 * dash - 0.15 * arm_raise))
+        _pose("J_Bip_R_Hand", Vector3(0.10, -0.15 + swing * 0.30 * side, 0.12))
     # Procedural spring on the imported secondary bones. Motion lags acceleration
     # and settles with damping; limits prevent instability at low mobile frame rates.
     var current_motion: Vector3 = Vector3(velocity.x, 0.0, velocity.z)

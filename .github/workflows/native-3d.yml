@@ -31,7 +31,8 @@ jobs:
           set -o pipefail
           godot --headless --path native3d --editor --import --quit 2>&1 | tee /tmp/import.log
           godot --headless --path native3d --script res://tests/smoke.gd 2>&1 | tee /tmp/smoke.log
-          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log | grep -v 'Parameter "t" is null' || true)
+          godot --headless --path native3d --script res://tests/motion_pilot.gd 2>&1 | tee /tmp/motion-pilot.log
+          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log | grep -v 'Parameter "t" is null' || true)
           if [ -n "$errors" ]; then
             echo "::error::$errors"
             exit 1
@@ -59,15 +60,18 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 -m pip install --quiet Pillow
-          for action in move attack dodge combo impact; do
+          for action in move attack dodge combo impact authored-move authored-combo authored-dodge; do
             mkdir -p "/tmp/preview-$action"
             frames=30
-            if [ "$action" = combo ]; then frames=48; fi
-            xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --write-movie "/tmp/preview-$action/frame.png" --fixed-fps 30 --quit-after "$frames" -- "--preview-$action" > "/tmp/preview-$action.log" 2>&1
+            if [[ "$action" = *combo ]]; then frames=48; fi
+            preview_action="$action"
+            extra=""
+            if [[ "$action" = authored-* ]]; then preview_action="${action#authored-}"; extra="--preview-authored"; fi
+            xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --write-movie "/tmp/preview-$action/frame.png" --fixed-fps 30 --quit-after "$frames" -- "--preview-$preview_action" $extra > "/tmp/preview-$action.log" 2>&1
             if grep -E 'SCRIPT ERROR|^ERROR:' "/tmp/preview-$action.log"; then exit 1; fi
             frame_number=12
-            if [ "$action" = dodge ]; then frame_number=7; fi
-            if [ "$action" = combo ]; then frame_number=36; fi
+            if [[ "$action" = *dodge ]]; then frame_number=7; fi
+            if [[ "$action" = *combo ]]; then frame_number=36; fi
             shot=$(find "/tmp/preview-$action" -name '*.png' | sort | sed -n "${frame_number}p")
             test -n "$shot"
             python3 -c 'import base64,json,sys; print(json.dumps({"content":base64.b64encode(open(sys.argv[1],"rb").read()).decode(),"encoding":"base64"}))' "$shot" > /tmp/preview-blob.json
@@ -94,7 +98,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat /tmp/import.log /tmp/smoke.log /tmp/render.log 2>/dev/null > /tmp/diagnostics.txt || true
+          cat /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/render.log 2>/dev/null > /tmp/diagnostics.txt || true
           python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/diagnostics.txt","rb").read()).decode(),"encoding":"base64"}))' > /tmp/diagnostics.json
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/diagnostics.json --jq .sha)
           echo "::warning title=Diagnostics::$sha"
