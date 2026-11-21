@@ -10,3 +10,7 @@ To run locally, install Godot 4.4.1 and open this folder as a project. Headless 
 godot --headless --path native3d --editor --import --quit
 godot --headless --path native3d --script res://tests/smoke.gd
 ```
+
+## Android test status
+
+The `v0.3.1-native3d` debug APK was installed and rendered the actual 3D encounter in an API 30 x86_64 emulator using ANGLE software rendering (CI run 44925419191). This verifies startup and a visible frame, not mobile touch gameplay, sustained frame rate, or compatibility on a physical device. The screenshot showed placeholder visuals and the player taking damage from enemies. A previous emulator configuration using `swiftshader_indirect` produced a blank screen and Godot shader-linking errors; the emulator workflow uses `swangle_indirect` instead. Real Android GPU and device testing remains required, as do production signing and art/animation/physics work.
