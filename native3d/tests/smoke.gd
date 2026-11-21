@@ -30,5 +30,16 @@ func run_test() -> void:
         printerr("FAIL: victory state")
         quit(1)
         return
-    print("PASS native 3D: skeleton, encounter, damage and victory")
+    var spring = load("res://scripts/spring.gd").new()
+    for i in range(180): spring.step(0.1, 1.0 / 60.0, 30.0, 8.0, 0.16)
+    if absf(spring.angle - 0.1) > 0.01:
+        printerr("FAIL: spring fails to settle")
+        quit(1)
+        return
+    for i in range(60): spring.step(100.0, 1.0 / 60.0, 30.0, 8.0, 0.16)
+    if absf(spring.angle) > 0.161:
+        printerr("FAIL: spring exceeds limit")
+        quit(1)
+        return
+    print("PASS native 3D: skeleton, encounter, damage, victory, spring stability")
     quit(0)

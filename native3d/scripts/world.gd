@@ -27,8 +27,8 @@ func _ready() -> void:
     player.hit_enemy.connect(_hit_enemy)
     camera = Camera3D.new()
     camera.current = true
-    camera.fov = 48.0
-    camera.position = Vector3(0, 7, 11)
+    camera.fov = 47.0
+    camera.position = Vector3(0, 4.0, 7.0)
     add_child(camera)
     camera.look_at(Vector3(0, 1, 0))
     _ui()
@@ -119,12 +119,12 @@ func _button(text: String, size: Vector2) -> Button:
     var button = Button.new()
     button.text = text
     button.custom_minimum_size = size
-    button.add_theme_font_size_override("font_size", 22)
+    button.add_theme_font_size_override("font_size", 20)
     var normal = StyleBoxFlat.new()
     normal.bg_color = Color(0.13, 0.17, 0.21, 0.9)
     normal.border_color = Color(0.9, 0.28, 0.33)
     normal.set_border_width_all(2)
-    normal.set_corner_radius_all(10)
+    normal.set_corner_radius_all(24)
     var pressed = normal.duplicate()
     pressed.bg_color = Color(0.65, 0.12, 0.18, 0.95)
     button.add_theme_stylebox_override("normal", normal)
@@ -255,9 +255,9 @@ func _physics_process(delta: float) -> void:
     if timer > 8.0: tip_label.visible = false
 
 func _update_camera(delta: float) -> void:
-    var desired = player.global_position + Vector3(0, 6.4, 8.5)
+    var desired = player.global_position + Vector3(0, 3.5, 5.3)
     camera.global_position = camera.global_position.lerp(desired, minf(1.0, delta * 5.0))
-    camera.look_at(player.global_position + Vector3(0, 1.0, -0.7))
+    camera.look_at(player.global_position + Vector3(0, 1.15, -1.0))
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and not event.echo:
@@ -267,18 +267,28 @@ func _unhandled_key_input(event: InputEvent) -> void:
 
 func _attack() -> void:
     if not playing: return
-    player.attack()
+    if not player.attack(): return
     if is_instance_valid(slash): slash.queue_free()
     slash = MeshInstance3D.new()
-    var torus = TorusMesh.new()
-    torus.inner_radius = 1.1
-    torus.outer_radius = 1.16
-    torus.rings = 20
-    torus.ring_segments = 8
-    slash.mesh = torus
-    slash.material_override = _material(Color(1.0, 0.12, 0.18), 0.0, true)
-    slash.position = player.position + player.facing * 1.0 + Vector3(0, 0.9, 0)
-    slash.rotation_degrees.x = 60
+    var arc = ImmediateMesh.new()
+    arc.surface_begin(Mesh.PRIMITIVE_TRIANGLES)
+    for i in range(24):
+        var a0: float = deg_to_rad(-65.0 + float(i) * 130.0 / 24.0)
+        var a1: float = deg_to_rad(-65.0 + float(i + 1) * 130.0 / 24.0)
+        var inner0 = Vector3(sin(a0) * 0.78, 0, -cos(a0) * 0.78)
+        var outer0 = Vector3(sin(a0) * 1.12, 0, -cos(a0) * 1.12)
+        var inner1 = Vector3(sin(a1) * 0.78, 0, -cos(a1) * 0.78)
+        var outer1 = Vector3(sin(a1) * 1.12, 0, -cos(a1) * 1.12)
+        for vertex in [inner0, outer0, inner1, outer0, outer1, inner1]: arc.surface_add_vertex(vertex)
+    arc.surface_end()
+    slash.mesh = arc
+    var slash_material = _material(Color(1.0, 0.12, 0.18), 0.0, true)
+    slash_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    slash_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    slash.material_override = slash_material
+    slash.position = player.position + Vector3(0, 1.0, 0)
+    slash.rotation.y = atan2(-player.facing.x, -player.facing.z)
+    slash.rotation_degrees.x = 25
     add_child(slash)
     slash_life = 0.16
 
@@ -313,6 +323,8 @@ func _pause() -> void:
     if not playing: return
     playing = false
     player.enabled = false
+    player.control = Vector2.ZERO
+    joystick._reset()
     hud.visible = false
     for enemy in get_tree().get_nodes_in_group("enemies"): enemy.enabled = false
     _show_menu("PAUSED", "RETURN TO THE ROOFTOP WHEN READY", "RESUME")

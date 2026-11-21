@@ -4,6 +4,7 @@ signal health_changed(value: int)
 signal hit_enemy(enemy: Node3D, damage: int)
 
 const AVATAR = preload("res://assets/avatar.glb")
+const SPRING = preload("res://scripts/spring.gd")
 const SPEED: float = 4.1
 const DASH_SPEED: float = 10.0
 var control: Vector2 = Vector2.ZERO
@@ -24,8 +25,8 @@ var bone_rest: Dictionary = {}
 var hair_bones: Array[int] = []
 var skirt_bones: Array[int] = []
 var body_bones: Array[int] = []
-var spring: float = 0.0
-var spring_velocity: float = 0.0
+var springs: Dictionary = {}
+var previous_motion: Vector3 = Vector3.ZERO
 var visual_time: float = 0.0
 var speed_ratio: float = 0.0
 var enabled: bool = false
@@ -51,10 +52,13 @@ func _ready() -> void:
             bone_rest[i] = skeleton.get_bone_pose_rotation(i)
             if bone_name.begins_with("HairJoint"):
                 hair_bones.append(i)
+                springs[i] = SPRING.new()
             elif bone_name.begins_with("J_Sec_") and "Skirt" in bone_name:
                 skirt_bones.append(i)
+                springs[i] = SPRING.new()
             elif bone_name.begins_with("J_Sec_") and "Bust" in bone_name:
                 body_bones.append(i)
+                springs[i] = SPRING.new()
         _attach_sword()
 
 func _find_skeleton(node: Node) -> Skeleton3D:
@@ -127,14 +131,15 @@ func _physics_process(delta: float) -> void:
                     energy = minf(100.0, energy + 20.0)
     _animate(delta)
 
-func attack() -> void:
+func attack() -> bool:
     if not enabled or attack_cooldown > 0.0 or dash_time > 0.0:
-        return
+        return false
     combo = combo % 3 + 1
     combo_timeout = 1.1
     attack_timer = 0.42
     attack_cooldown = 0.34
     attack_hit = false
+    return true
 
 func dodge() -> void:
     if not enabled or dash_cooldown > 0.0:
@@ -166,13 +171,18 @@ func _animate(delta: float) -> void:
     _pose("J_Bip_R_LowerLeg", Vector3.RIGHT, maxf(0.0, stride) * 0.35)
     _pose("J_Bip_L_UpperArm", Vector3.FORWARD, -0.95 + stride * 0.15)
     _pose("J_Bip_R_UpperArm", Vector3.FORWARD, 0.95 - stride * 0.15 - sin((0.42 - attack_timer) * PI / 0.42) * (1.2 if attack_timer > 0.0 else 0.0))
-    # Damped secondary motion, bounded for stability. This is not full soft-body physics.
-    var target: float = speed_ratio * 0.08 + (0.10 if dash_time > 0.0 else 0.0)
-    spring_velocity += ((target - spring) * 30.0 - spring_velocity * 8.0) * delta
-    spring = clampf(spring + spring_velocity * delta, -0.16, 0.16)
+    # Procedural spring on the imported secondary bones. Motion lags acceleration
+    # and settles with damping; limits prevent instability at low mobile frame rates.
+    var current_motion: Vector3 = Vector3(velocity.x, 0.0, velocity.z)
+    var acceleration: Vector3 = (current_motion - previous_motion).limit_length(8.0)
+    previous_motion = current_motion
+    var lag: float = clampf(speed_ratio * 0.09 + acceleration.length() * 0.009, 0.0, 0.18)
     for index in hair_bones:
-        skeleton.set_bone_pose_rotation(index, bone_rest[index] * Quaternion(Vector3.RIGHT, spring * 0.2))
+        var hair_angle: float = springs[index].step(lag * 0.5, delta, 26.0, 7.0, 0.16)
+        skeleton.set_bone_pose_rotation(index, bone_rest[index] * Quaternion(Vector3.RIGHT, hair_angle))
     for index in skirt_bones:
-        skeleton.set_bone_pose_rotation(index, bone_rest[index] * Quaternion(Vector3.RIGHT, spring * 0.12))
+        var cloth_angle: float = springs[index].step(lag * 0.3, delta, 34.0, 9.0, 0.12)
+        skeleton.set_bone_pose_rotation(index, bone_rest[index] * Quaternion(Vector3.RIGHT, cloth_angle))
     for index in body_bones:
-        skeleton.set_bone_pose_rotation(index, bone_rest[index] * Quaternion(Vector3.RIGHT, spring * 0.04))
+        var body_angle: float = springs[index].step(lag * 0.08, delta, 45.0, 11.0, 0.035)
+        skeleton.set_bone_pose_rotation(index, bone_rest[index] * Quaternion(Vector3.RIGHT, body_angle))
