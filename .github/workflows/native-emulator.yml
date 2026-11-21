@@ -34,10 +34,16 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
+            trap 'adb logcat -d -v brief > /tmp/android-debug.log; adb exec-out screencap -p > /tmp/android-debug.png || true' EXIT
+            set -e
+            echo 'Resize screen'
             adb shell wm size 1280x720
+            echo 'Install APK'
             adb install -r scarlet-veil-3d-test.apk
+            echo 'Start game'
             adb shell monkey -p com.smallstudio.scarletveil3d 1
             sleep 20
+            echo 'Check game process'
             adb shell pidof com.smallstudio.scarletveil3d
             adb shell input tap 640 430
             sleep 10
@@ -52,3 +58,19 @@ jobs:
           python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/android-frame.png","rb").read()).decode(),"encoding":"base64"}))' > /tmp/android-frame.json
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/android-frame.json --jq .sha)
           echo "::warning title=Android screenshot::$sha"
+      - name: Store emulator failure diagnostics
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f /tmp/android-debug.log ]; then
+            tail -2000 /tmp/android-debug.log > /tmp/android-debug-tail.log
+            python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/android-debug-tail.log","rb").read()).decode(),"encoding":"base64"}))' > /tmp/android-debug.json
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/android-debug.json --jq .sha)
+            echo "::warning title=Android diagnostics::$sha"
+          fi
+          if [ -s /tmp/android-debug.png ]; then
+            python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/android-debug.png","rb").read()).decode(),"encoding":"base64"}))' > /tmp/android-debug-image.json
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/android-debug-image.json --jq .sha)
+            echo "::warning title=Android failure screenshot::$sha"
+          fi
