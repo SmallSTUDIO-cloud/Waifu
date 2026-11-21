@@ -42,7 +42,7 @@ jobs:
             adb install -r scarlet-veil-3d-test.apk
             echo 'Start game'
             adb shell monkey -p com.smallstudio.scarletveil3d 1
-            sleep 20
+            sleep 70
             echo 'Check game process'
             adb shell pidof com.smallstudio.scarletveil3d
             adb shell input tap 640 430
@@ -58,8 +58,8 @@ jobs:
           python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/android-frame.png","rb").read()).decode(),"encoding":"base64"}))' > /tmp/android-frame.json
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/android-frame.json --jq .sha)
           echo "::warning title=Android screenshot::$sha"
-      - name: Store emulator failure diagnostics
-        if: failure()
+      - name: Store emulator diagnostics
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
