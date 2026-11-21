@@ -1,8 +1,5 @@
 name: Native Android emulator smoke
 on:
-  push:
-    paths:
-      - '.github/workflows/native-emulator.yml'
   workflow_dispatch:
 permissions:
   contents: write
@@ -21,10 +18,47 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Download released APK
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh release download v0.3.1-native3d -p scarlet-veil-3d-test.apk
+      - name: Cache Godot and Android template
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/bin/godot
+            ~/.local/share/godot/export_templates/4.4.1.stable
+          key: godot-4.4.1-android-profile-v1
+      - name: Install Godot and debug template
+        run: |
+          mkdir -p "$HOME/.local/bin" "$HOME/.local/share/godot/export_templates/4.4.1.stable"
+          if [ ! -x "$HOME/.local/bin/godot" ]; then
+            curl -fsSL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
+            unzip -p /tmp/godot.zip Godot_v4.4.1-stable_linux.x86_64 > "$HOME/.local/bin/godot"
+            chmod +x "$HOME/.local/bin/godot"
+          fi
+          target="$HOME/.local/share/godot/export_templates/4.4.1.stable/android_debug.apk"
+          if [ ! -s "$target" ]; then
+            curl -fsSL -o /tmp/templates.tpz https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
+            unzip -p /tmp/templates.tpz templates/android_debug.apk > "$target"
+            rm -f /tmp/templates.tpz
+          fi
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Configure debug export
+        run: |
+          mkdir -p "$HOME/.android" "$HOME/.config/godot"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<SETTINGS
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = "$HOME/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          SETTINGS
+      - name: Import and build private debug APK
+        run: |
+          set -o pipefail
+          godot --headless --path native3d --editor --import --quit > /tmp/android-import.log 2>&1
+          godot --headless --path native3d --export-debug Android "$RUNNER_TEMP/secondary-debug.apk" 2>&1 | tee /tmp/android-export.log
+          test -s "$RUNNER_TEMP/secondary-debug.apk"
       - name: Launch APK on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -41,7 +75,7 @@ jobs:
             adb wait-for-device
             adb shell input keyevent 82
             echo '::warning title=Emulator phase::Installing APK'
-            adb install -r scarlet-veil-3d-test.apk
+            adb install -r "$RUNNER_TEMP/secondary-debug.apk"
             echo '::warning title=Emulator phase::Starting game'
             adb logcat -c
             adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.smallstudio.scarletveil3d
@@ -54,10 +88,22 @@ jobs:
             adb exec-out screencap -p > /tmp/android-menu.png
             adb shell input tap 320 190
             sleep 10
+            adb shell dumpsys gfxinfo com.smallstudio.scarletveil3d reset > /dev/null
+            adb shell input swipe 120 650 120 500 3000
+            adb shell input tap 1190 660
+            adb shell input tap 1050 660
+            sleep 10
+            adb shell dumpsys gfxinfo com.smallstudio.scarletveil3d framestats > /tmp/android-framestats.txt
             adb shell pidof com.smallstudio.scarletveil3d
             adb exec-out screencap -p > /tmp/android-frame.png
             adb logcat -d -s AndroidRuntime:E > /tmp/android-errors.log
             if grep -q 'FATAL EXCEPTION' /tmp/android-errors.log; then cat /tmp/android-errors.log; exit 1; fi
+      - name: Summarize Android emulator frame data
+        if: always()
+        run: |
+          if [ -f /tmp/android-framestats.txt ]; then
+            cat /tmp/android-framestats.txt | head -45
+          fi
       - name: Verify frame is not blank
         run: |
           python3 -m pip install --quiet Pillow
@@ -75,7 +121,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ -f /tmp/android-debug.log ]; then
-            { cat /tmp/android-activity.txt 2>/dev/null; grep -i -E 'godot|smallstudio|fatal|exception|error:' /tmp/android-live.log 2>/dev/null | tail -3000; } > /tmp/android-debug-tail.log || true
+            { cat /tmp/android-activity.txt /tmp/android-framestats.txt 2>/dev/null; grep -i -E 'godot|smallstudio|fatal|exception|error:' /tmp/android-live.log 2>/dev/null | tail -3000; } > /tmp/android-debug-tail.log || true
             python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/android-debug-tail.log","rb").read()).decode(),"encoding":"base64"}))' > /tmp/android-debug.json
             sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/android-debug.json --jq .sha)
             echo "::warning title=Android diagnostics::$sha"
