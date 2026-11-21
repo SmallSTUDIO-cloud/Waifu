@@ -7,8 +7,8 @@ func run_test() -> void:
     var scene = load("res://main.tscn").instantiate()
     root.add_child(scene)
     await process_frame
-    var driver = load("res://scripts/authored_motion.gd").new()
-    if not driver.setup(scene.player.model_root, scene.player.skeleton):
+    var driver = scene.player.motion_driver
+    if not driver or not driver.valid:
         printerr("FAIL: authored skeleton mapping incomplete")
         quit(1)
         return
@@ -36,6 +36,20 @@ func run_test() -> void:
         printerr("FAIL: authored jog did not animate")
         quit(1)
         return
+    # After blending, the anatomical upper arm and leg directions should match
+    # the authored rig after its 180-degree facing correction. This catches the
+    # common failure where local bone quaternions lift both arms over the head.
+    for i in range(60): driver.update(1.0 / 60.0, 0.9, -1.0, -1.0, 0)
+    var facing_flip = Basis(Vector3.UP, PI)
+    for pair in [["DEF-upper_arm.R", "DEF-forearm.R", "J_Bip_R_UpperArm", "J_Bip_R_LowerArm"], ["DEF-thigh.R", "DEF-shin.R", "J_Bip_R_UpperLeg", "J_Bip_R_LowerLeg"]]:
+        var a = driver.source_rig.find_bone(pair[0]); var b = driver.source_rig.find_bone(pair[1])
+        var c = scene.player.skeleton.find_bone(pair[2]); var d = scene.player.skeleton.find_bone(pair[3])
+        var source_dir = (driver.source_rig.get_bone_global_pose(b).origin - driver.source_rig.get_bone_global_pose(a).origin).normalized()
+        var target_dir = (scene.player.skeleton.get_bone_global_pose(d).origin - scene.player.skeleton.get_bone_global_pose(c).origin).normalized()
+        if (facing_flip * source_dir).dot(target_dir) < 0.75:
+            printerr("FAIL: anatomical retarget direction: ", pair)
+            quit(1)
+            return
     driver.update(0.1, 0.0, 0.4, -1.0, 1)
     if driver.current != "Sword_Attack":
         printerr("FAIL: attack state")

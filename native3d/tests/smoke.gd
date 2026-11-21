@@ -39,7 +39,7 @@ func run_test() -> void:
     enemies[0].global_position = scene.player.global_position + Vector3(0, 0, -1.0)
     scene.player.facing = Vector3(0, 0, -1)
     scene.player.attack()
-    for i in range(15): await physics_frame
+    for i in range(20): await physics_frame
     var saw_effect = false
     var impact_in_front = false
     for child in scene.get_children():

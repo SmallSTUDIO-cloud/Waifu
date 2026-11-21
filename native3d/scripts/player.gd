@@ -9,9 +9,9 @@ const SPRING = preload("res://scripts/spring.gd")
 const SWORD_TRAIL = preload("res://scripts/sword_trail.gd")
 const AUTHORED_MOTION = preload("res://scripts/authored_motion.gd")
 const SPEED: float = 4.1
-const DASH_SPEED: float = 10.0
-const ATTACK_DURATION: float = 0.48
-const DASH_DURATION: float = 0.28
+const DASH_SPEED: float = 7.5
+const ATTACK_DURATION: float = 0.58
+const DASH_DURATION: float = 0.42
 var control: Vector2 = Vector2.ZERO
 var facing: Vector3 = Vector3(0, 0, -1)
 var health: int = 100
@@ -77,12 +77,12 @@ func _ready() -> void:
         _attach_sword()
         sword_trail = SWORD_TRAIL.new()
         add_child(sword_trail)
-        if "--preview-authored" in OS.get_cmdline_user_args():
-            var candidate = AUTHORED_MOTION.new()
-            if candidate.setup(model_root, skeleton):
-                motion_driver = candidate
-            else:
-                push_error("Authored motion skeleton mapping incomplete")
+        var candidate = AUTHORED_MOTION.new()
+        if candidate.setup(model_root, skeleton):
+            motion_driver = candidate
+        else:
+            if candidate.source: candidate.source.queue_free()
+            push_warning("Authored motion unavailable; using procedural fallback")
 
 func _find_skeleton(node: Node) -> Skeleton3D:
     if node is Skeleton3D:
@@ -168,7 +168,7 @@ func _physics_process(delta: float) -> void:
         var angle_error: float = wrapf(angle - model_root.rotation.y, -PI, PI)
         turn_lean = lerpf(turn_lean, clampf(-angle_error * 0.18, -0.18, 0.18) * speed_ratio, 1.0 - exp(-delta * 8.0))
         model_root.rotation.y = lerp_angle(model_root.rotation.y, angle, 1.0 - exp(-delta * 12.0))
-    if attack_timer > 0.0 and attack_timer <= ATTACK_DURATION - 0.16 and not attack_hit:
+    if attack_timer > 0.0 and attack_timer <= ATTACK_DURATION * 0.60 and not attack_hit:
         attack_hit = true
         attack_swing.emit(combo)
         for enemy in get_tree().get_nodes_in_group("enemies"):
@@ -193,7 +193,7 @@ func attack() -> bool:
     combo = combo % 3 + 1
     combo_timeout = 1.1
     attack_timer = ATTACK_DURATION
-    attack_cooldown = 0.40
+    attack_cooldown = 0.50
     attack_hit = false
     return true
 
@@ -211,7 +211,7 @@ func dodge() -> bool:
     facing = dash_direction
     dash_time = DASH_DURATION
     dash_cooldown = 1.0
-    invulnerable = 0.32
+    invulnerable = 0.40
     return true
 
 func take_damage(amount: int) -> void:
