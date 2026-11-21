@@ -40,6 +40,10 @@ func setup(parent: Node3D, target: Skeleton3D) -> bool:
     if not source_rig or not animator:
         return false
     animator.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+    # The authored sword-idle's first and last poses match, but its source
+    # name lacks Godot's loop suffix, so the importer treats it as a one-shot.
+    if animator.has_animation("Sword_Idle"):
+        animator.get_animation("Sword_Idle").loop_mode = Animation.LOOP_LINEAR
     # A parent-first iteration is essential when reconstructing local rotations.
     for index in range(target_rig.get_bone_count()):
         var target_name = target_rig.get_bone_name(index)

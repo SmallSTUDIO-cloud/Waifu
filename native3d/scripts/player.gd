@@ -80,6 +80,9 @@ func _ready() -> void:
         var candidate = AUTHORED_MOTION.new()
         if candidate.setup(model_root, skeleton):
             motion_driver = candidate
+            # Settle into the ready pose immediately, including on the menu.
+            for i in range(25):
+                motion_driver.update(1.0 / 60.0, 0.0, -1.0, -1.0, 0)
         else:
             if candidate.source: candidate.source.queue_free()
             push_warning("Authored motion unavailable; using procedural fallback")

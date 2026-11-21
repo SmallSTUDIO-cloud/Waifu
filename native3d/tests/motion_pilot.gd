@@ -18,6 +18,11 @@ func run_test() -> void:
             printerr("FAIL: missing authored clip ", clip)
             quit(1)
             return
+    for clip in ["Sword_Idle", "Walk", "Jog_Fwd"]:
+        if driver.animator.get_animation(clip).loop_mode == Animation.LOOP_NONE:
+            printerr("FAIL: locomotion clip does not loop: ", clip)
+            quit(1)
+            return
     driver.update(0.1, 0.0, -1.0, -1.0, 0)
     if driver.current != "Sword_Idle":
         printerr("FAIL: idle state")
