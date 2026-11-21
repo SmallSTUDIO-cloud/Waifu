@@ -13,7 +13,7 @@ func run_test() -> void:
         quit(1)
         return
     print("SOURCE CLIPS ", driver.animator.get_animation_list())
-    for clip in ["Sword_Idle", "Walk_Loop", "Jog_Fwd_Loop", "Sword_Attack", "Roll"]:
+    for clip in ["Sword_Idle", "Walk", "Jog_Fwd", "Sword_Attack", "Roll"]:
         if not driver.animator.has_animation(clip):
             printerr("FAIL: missing authored clip ", clip)
             quit(1)
@@ -24,7 +24,7 @@ func run_test() -> void:
         quit(1)
         return
     driver.update(0.1, 0.9, -1.0, -1.0, 0)
-    if driver.current != "Jog_Fwd_Loop":
+    if driver.current != "Jog_Fwd":
         printerr("FAIL: jog state")
         quit(1)
         return

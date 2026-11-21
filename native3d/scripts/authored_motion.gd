@@ -63,8 +63,8 @@ func update(delta: float, speed: float, attack_progress: float, dash_progress: f
     var desired = "Sword_Idle"
     if dash_progress >= 0.0: desired = "Roll"
     elif attack_progress >= 0.0: desired = "Sword_Attack"
-    elif speed > 0.62: desired = "Jog_Fwd_Loop"
-    elif speed > 0.10: desired = "Walk_Loop"
+    elif speed > 0.62: desired = "Jog_Fwd"
+    elif speed > 0.10: desired = "Walk"
     if desired != current or (desired == "Sword_Attack" and current_combo != combo):
         current = desired
         current_combo = combo
