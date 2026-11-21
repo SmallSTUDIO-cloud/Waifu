@@ -8,6 +8,7 @@ var hp: int = 3
 var mode: String = "chase"
 var timer: float = 0.5
 var stagger: float = 0.0
+var flash: float = 0.0
 var body_mesh: MeshInstance3D
 var warning: MeshInstance3D
 var enabled: bool = false
@@ -67,6 +68,11 @@ func _physics_process(delta: float) -> void:
         return
     timer -= delta
     stagger = maxf(0.0, stagger - delta)
+    flash = maxf(0.0, flash - delta)
+    var body_material = body_mesh.material_override as StandardMaterial3D
+    body_material.emission_enabled = flash > 0.0
+    body_material.emission = Color(0.9, 0.14, 0.08) * (flash / 0.12)
+    rotation.x = lerpf(rotation.x, -0.24 if stagger > 0.0 else 0.0, 1.0 - exp(-delta * 14.0))
     var offset: Vector3 = target.global_position - global_position
     offset.y = 0.0
     var distance: float = offset.length()
@@ -102,6 +108,7 @@ func take_damage(amount: int) -> void:
         return
     hp -= amount
     stagger = 0.28
+    flash = 0.12
     mode = "chase"
     timer = 0.4
     struck.emit(global_position)

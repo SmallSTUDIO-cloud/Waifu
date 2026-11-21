@@ -26,6 +26,7 @@ var invulnerable: float = 0.0
 var model_root: Node3D
 var skeleton: Skeleton3D
 var bone_rest: Dictionary = {}
+var bone_indices: Dictionary = {}
 var hair_bones: Array[int] = []
 var skirt_bones: Array[int] = []
 var body_bones: Array[int] = []
@@ -61,6 +62,7 @@ func _ready() -> void:
         for i in range(skeleton.get_bone_count()):
             var bone_name: String = skeleton.get_bone_name(i)
             bone_rest[i] = skeleton.get_bone_pose_rotation(i)
+            bone_indices[bone_name] = i
             if bone_name.begins_with("HairJoint"):
                 hair_bones.append(i)
                 springs[i] = SPRING.new()
@@ -215,7 +217,7 @@ func take_damage(amount: int) -> void:
 # are baked into the temporary avatar. Blending prevents state transitions from
 # snapping while the attack timeline keeps wind-up, strike and recovery distinct.
 func _pose(bone_name: String, angles: Vector3) -> void:
-    var index = skeleton.find_bone(bone_name)
+    var index: int = bone_indices.get(bone_name, -1)
     if index >= 0 and bone_rest.has(index):
         var target: Quaternion = bone_rest[index] * Quaternion.from_euler(angles)
         skeleton.set_bone_pose_rotation(index, skeleton.get_bone_pose_rotation(index).slerp(target, pose_blend))
@@ -244,13 +246,14 @@ func _animate(delta: float) -> void:
     var lift_r: float = pow(maxf(0.0, gait), 1.3) * speed_ratio
     var swing: float = _attack_pose()
     var side: float = -1.0 if combo == 2 else 1.0
+    var arm_raise: float = clampf(absf(swing) * 1.3, 0.0, 1.0)
     var dash: float = sin(PI * (1.0 - dash_time / DASH_DURATION)) if dash_time > 0.0 else 0.0
     var run: float = speed_ratio * (1.0 - dash * 0.5)
     model_root.position.y = 0.018 * (1.0 - cos(gait_phase * 2.0)) * run - 0.19 * dash
     model_root.rotation.x = lerpf(model_root.rotation.x, -0.42 * dash - 0.08 * run, pose_blend)
     model_root.rotation.z = lerpf(model_root.rotation.z, turn_lean, pose_blend)
     _pose("J_Bip_C_Hips", Vector3(0.08 * run + 0.34 * dash, swing * 0.20 * side + stride * 0.075, stride * 0.05))
-    _pose("J_Bip_C_Spine", Vector3(-0.10 * run + 0.20 * dash, -swing * 0.35 * side, -stride * 0.025))
+    _pose("J_Bip_C_Spine", Vector3(-0.10 * run + 0.20 * dash - arm_raise * 0.08, -swing * 0.45 * side, -stride * 0.025 - swing * 0.08))
     _pose("J_Bip_C_Chest", Vector3(0.025 * sin(visual_time * 2.2) * (1.0 - run), -swing * 0.28 * side - stride * 0.08, 0.08 * dash))
     _pose("J_Bip_C_Head", Vector3(-0.12 * dash, swing * 0.12 * side, 0.0))
     _pose("J_Bip_L_UpperLeg", Vector3(stride * 0.62 - 0.65 * dash, 0, -0.04))
@@ -262,8 +265,8 @@ func _animate(delta: float) -> void:
     _pose("J_Bip_L_UpperArm", Vector3(-0.08 - dash * 0.30, stride * 0.36 - 0.35 * dash - swing * 0.20 * side, 1.12))
     _pose("J_Bip_L_LowerArm", Vector3(0, -0.20, 0.30 + 0.35 * dash))
     # Shoulder, elbow and wrist all contribute to the sword arc.
-    _pose("J_Bip_R_UpperArm", Vector3(-0.28 * swing if combo == 3 else 0.0, -0.30 - stride * 0.12 + swing * 1.05 * side, -1.08 + swing * (0.80 if combo == 3 else 0.42)))
-    _pose("J_Bip_R_LowerArm", Vector3(0, 0.25 + swing * 0.50 * side, -0.38 - 0.25 * dash))
+    _pose("J_Bip_R_UpperArm", Vector3(-0.32 * swing if combo == 3 else -0.10 * swing, -0.30 - stride * 0.12 + swing * 1.15 * side, -1.08 + arm_raise * (1.20 if combo == 3 else 0.95)))
+    _pose("J_Bip_R_LowerArm", Vector3(0, 0.25 + swing * 0.70 * side, -0.38 - 0.25 * dash - 0.15 * arm_raise))
     _pose("J_Bip_R_Hand", Vector3(0.10, -0.15 + swing * 0.30 * side, 0.12))
     # Procedural spring on the imported secondary bones. Motion lags acceleration
     # and settles with damping; limits prevent instability at low mobile frame rates.

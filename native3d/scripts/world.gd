@@ -17,6 +17,7 @@ var playing: bool = false
 var remaining: int = 0
 var preview_mode: String = ""
 var preview_action_started: bool = false
+var camera_kick: float = 0.0
 
 func _ready() -> void:
     _environment()
@@ -36,12 +37,17 @@ func _ready() -> void:
     _ui()
     _update_camera(1.0)
     var args = OS.get_cmdline_user_args()
-    if "--smoke-play" in args or "--preview-move" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args:
+    if "--smoke-play" in args or "--preview-move" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args:
         start_game()
     if "--preview-move" in args: preview_mode = "move"
     if "--preview-attack" in args: preview_mode = "attack"
     if "--preview-dodge" in args: preview_mode = "dodge"
     if "--preview-combo" in args: preview_mode = "combo"
+    if "--preview-impact" in args:
+        preview_mode = "impact"
+        var enemies = get_tree().get_nodes_in_group("enemies")
+        for enemy in enemies: enemy.enabled = false
+        if not enemies.is_empty(): enemies[0].global_position = player.global_position + Vector3(0.55, 0, -1.5)
 
 func _environment() -> void:
     var env_node = WorldEnvironment.new()
@@ -237,6 +243,9 @@ func start_game() -> void:
     player.dash_time = 0.0
     player.dash_cooldown = 0.0
     player.velocity = Vector3.ZERO
+    player.speed_ratio = 0.0
+    player.turn_lean = 0.0
+    camera_kick = 0.0
     player.enabled = true
     player.control = Vector2.ZERO
     timer = 0.0
@@ -266,7 +275,7 @@ func _physics_process(delta: float) -> void:
     player.control = (joystick.direction + keyboard).limit_length(1.0)
     if preview_mode == "move": player.control = Vector2(0.0, -1.0)
     if not preview_action_started and timer > 0.08:
-        if preview_mode == "attack" or preview_mode == "combo": _attack()
+        if preview_mode == "attack" or preview_mode == "combo" or preview_mode == "impact": _attack()
         if preview_mode == "dodge": _dodge()
         preview_action_started = true
     if preview_mode == "combo" and player.combo == 1 and timer > 0.54: _attack()
@@ -278,7 +287,9 @@ func _update_camera(delta: float) -> void:
     var camera_offset = Vector3(0, 3.5, 5.3)
     if preview_mode != "": camera_offset = Vector3(0, 2.0, 2.8)
     var desired = player.global_position + camera_offset
-    camera.global_position = camera.global_position.lerp(desired, minf(1.0, delta * 5.0))
+    camera_kick = maxf(0.0, camera_kick - delta * 4.0)
+    var shake = Vector3(sin(timer * 87.0), cos(timer * 63.0), 0) * camera_kick * 0.035
+    camera.global_position = camera.global_position.lerp(desired, minf(1.0, delta * 5.0)) + shake
     camera.look_at(player.global_position + Vector3(0, 1.0, -0.25 if preview_mode != "" else -1.0))
 
 func _unhandled_key_input(event: InputEvent) -> void:
@@ -308,6 +319,7 @@ func _dodge() -> void:
 
 func _hit_enemy(enemy: Node3D, damage: int) -> void:
     if is_instance_valid(enemy):
+        camera_kick = 1.0 if damage > 1 else 0.65
         var effect = _spawn_vfx("impact", enemy.global_position + Vector3(0, 1.0, 0))
         effect.rotation.y = camera.rotation.y
         enemy.take_damage(damage)
