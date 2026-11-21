@@ -29,7 +29,7 @@ jobs:
       - name: Import and smoke test
         run: |
           set -o pipefail
-          godot --headless --path native3d --editor --import --quit 2>&1 | tee /tmp/import.log
+          xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --editor --import --quit 2>&1 | tee /tmp/import.log
           godot --headless --path native3d --script res://tests/smoke.gd 2>&1 | tee /tmp/smoke.log
           if grep -E 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log; then
             echo "::error::$(grep -E 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log | head -8 | tr '\n' ' ')"
