@@ -108,6 +108,7 @@ func run_test() -> void:
     var tip = probe._tip_position(cloth, constrained, rig.get_bone_global_pose(0))
     var a = rig.get_bone_global_pose(3).origin
     var b = rig.get_bone_global_pose(4).origin
+    print("Collision probe: tip=", tip, " segment=", a, "/", b, " distance=", probe._segment_distance(tip, a, b), " dot=", constrained.dot(desired), " pose child=", rig.get_bone_pose_position(2), " pairs=", probe.leg_pairs)
     if probe._segment_distance(tip, a, b) < probe.LEG_RADIUS - 0.001 or absf(constrained.dot(desired)) > 0.99999:
         fail("skirt tip was not constrained against leg proxy")
         return
