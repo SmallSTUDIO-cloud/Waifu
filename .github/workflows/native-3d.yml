@@ -63,3 +63,62 @@ jobs:
           python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/diagnostics.txt","rb").read()).decode(),"encoding":"base64"}))' > /tmp/diagnostics.json
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/diagnostics.json --jq .sha)
           echo "::warning title=Diagnostics::$sha"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Cache Android export template
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates/4.4.1.stable
+          key: godot-4.4.1-android-debug-template
+      - name: Install Android debug template
+        run: |
+          target="$HOME/.local/share/godot/export_templates/4.4.1.stable"
+          if [ ! -f "$target/android_debug.apk" ]; then
+            mkdir -p "$target"
+            curl -fsSL -o /tmp/templates.tpz https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
+            unzip -p /tmp/templates.tpz templates/android_debug.apk > "$target/android_debug.apk"
+            test -s "$target/android_debug.apk"
+            rm -f /tmp/templates.tpz
+          fi
+      - name: Configure Android signing and SDK
+        run: |
+          mkdir -p "$HOME/.android" "$HOME/.config/godot" native3d/build
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<SETTINGS
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = "$HOME/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          SETTINGS
+      - name: Export native Android APK
+        run: |
+          set -o pipefail
+          godot --headless --path native3d --export-debug Android "$GITHUB_WORKSPACE/native3d/build/scarlet-veil-3d-test.apk" 2>&1 | tee /tmp/export.log
+          test -s native3d/build/scarlet-veil-3d-test.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-veil-native-3d-test
+          path: native3d/build/scarlet-veil-3d-test.apk
+          if-no-files-found: error
+      - name: Publish 3D test APK
+        if: github.event_name == 'push' && github.ref == 'refs/heads/arena/175fcd9f-waifu' && contains(github.event.head_commit.message, '[3d-release]')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.3.0-native3d native3d/build/scarlet-veil-3d-test.apk \
+            --target "$GITHUB_SHA" --prerelease --title 'Scarlet Veil v0.3.0 — Native 3D Test' \
+            --notes 'Early Godot native 3D combat test. Features a third-party CC0 rigged character, procedural animation and bounded secondary-motion springs, four placeholder enemies, sword attacks and dodging. This is not the final character, final art, full VRM physics, or a production game. Debug-signed for sideloading and not yet tested on physical Android hardware. See native3d/README.md and native3d/ASSET_LICENSES.md.'
+      - name: Store export diagnostics on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test -f /tmp/export.log || exit 0
+          python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/export.log","rb").read()).decode(),"encoding":"base64"}))' > /tmp/export.json
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/export.json --jq .sha)
+          echo "::warning title=Export diagnostics::$sha"

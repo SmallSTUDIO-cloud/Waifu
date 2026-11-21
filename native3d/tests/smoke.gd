@@ -24,6 +24,21 @@ func run_test() -> void:
         printerr("FAIL: player damage")
         quit(1)
         return
+    scene.player.dodge()
+    scene.player.take_damage(14)
+    if scene.player.health != 86:
+        printerr("FAIL: dodge invulnerability")
+        quit(1)
+        return
+    scene.player.dash_time = 0.0
+    enemies[0].global_position = scene.player.global_position + Vector3(0, 0, -1.0)
+    scene.player.facing = Vector3(0, 0, -1)
+    scene.player.attack()
+    for i in range(15): await physics_frame
+    if enemies[0].hp >= 3:
+        printerr("FAIL: attack did not hit nearby enemy")
+        quit(1)
+        return
     for enemy in enemies:
         enemy.take_damage(10)
     if scene.remaining != 0 or scene.playing:
