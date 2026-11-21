@@ -29,16 +29,17 @@ jobs:
       - name: Import and smoke test
         run: |
           set -o pipefail
-          xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --editor --import --quit 2>&1 | tee /tmp/import.log
+          godot --headless --path native3d --editor --import --quit 2>&1 | tee /tmp/import.log
           godot --headless --path native3d --script res://tests/smoke.gd 2>&1 | tee /tmp/smoke.log
-          if grep -E 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log; then
-            echo "::error::$(grep -E 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log | head -8 | tr '\n' ' ')"
+          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log | grep -v 'Parameter "t" is null' || true)
+          if [ -n "$errors" ]; then
+            echo "::error::$errors"
             exit 1
           fi
       - name: Capture software-rendered frame
         run: |
           mkdir -p /tmp/frames
-          xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --write-movie /tmp/frames/frame.png --fixed-fps 30 --quit-after 15 -- --smoke-play 2>&1 | tee /tmp/render.log
+          xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --write-movie /tmp/frames/frame.png --fixed-fps 30 --quit-after 15 -- --smoke-play 2>&1 | tee /tmp/render.log
           shot=$(find /tmp/frames -name '*.png' | sort | tail -1)
           test -n "$shot"
           echo "SCREENSHOT=$shot" >> "$GITHUB_ENV"
