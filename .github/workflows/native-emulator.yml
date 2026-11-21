@@ -31,6 +31,7 @@ jobs:
           api-level: 30
           target: default
           arch: x86_64
+          ram-size: 3072M
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
@@ -42,10 +43,13 @@ jobs:
             echo '::warning title=Emulator phase::Installing APK'
             adb install -r scarlet-veil-3d-test.apk
             echo '::warning title=Emulator phase::Starting game'
+            adb logcat -c
             adb shell monkey -p com.smallstudio.scarletveil3d 1
-            sleep 70
+            sleep 100
             echo '::warning title=Emulator phase::Checking game process'
             adb shell pidof com.smallstudio.scarletveil3d
+            adb shell dumpsys activity activities > /tmp/android-activity.txt
+            adb exec-out screencap -p > /tmp/android-menu.png
             adb shell input tap 320 190
             sleep 10
             adb shell pidof com.smallstudio.scarletveil3d
@@ -69,7 +73,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ -f /tmp/android-debug.log ]; then
-            grep -i -E "godot|scarlet|fatal|crash|error|exception|activitytask" /tmp/android-debug.log | tail -2000 > /tmp/android-debug-tail.log || true
+            cat /tmp/android-activity.txt /tmp/android-debug.log 2>/dev/null | tail -15000 > /tmp/android-debug-tail.log || true
             python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/android-debug-tail.log","rb").read()).decode(),"encoding":"base64"}))' > /tmp/android-debug.json
             sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/android-debug.json --jq .sha)
             echo "::warning title=Android diagnostics::$sha"
