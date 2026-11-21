@@ -106,9 +106,9 @@ func _attach_sword() -> void:
         grip.position = Vector3(0.038, 0.0, -0.005)
     grip.rotation_degrees = Vector3(0, 8, 35)
     _pose_gripping_fingers()
-    _sword_piece(grip, Vector3(0, 0.045, 0), Vector3(0.036, 0.14, 0.036), Color(0.25, 0.12, 0.12), 0.1)
+    _sword_piece(grip, Vector3(0, 0.025, 0), Vector3(0.036, 0.10, 0.036), Color(0.25, 0.12, 0.12), 0.1)
     _sword_piece(grip, Vector3(0, -0.045, 0), Vector3(0.12, 0.022, 0.055), Color(0.50, 0.32, 0.21), 0.65)
-    _sword_piece(grip, Vector3(0, 0.12, 0), Vector3(0.045, 0.024, 0.045), Color(0.45, 0.28, 0.19), 0.6)
+    _sword_piece(grip, Vector3(0, 0.079, 0), Vector3(0.045, 0.024, 0.045), Color(0.45, 0.28, 0.19), 0.6)
     _make_blade(grip)
     _sword_piece(grip, Vector3(0.008, -0.48, -0.014), Vector3(0.009, 0.73, 0.006), Color(0.8, 0.055, 0.1), 0.3, true)
 
