@@ -12,6 +12,7 @@ func run_test() -> void:
         printerr("FAIL: authored skeleton mapping incomplete")
         quit(1)
         return
+    print("SOURCE CLIPS ", driver.animator.get_animation_list())
     for clip in ["Sword_Idle", "Walk_Loop", "Jog_Fwd_Loop", "Sword_Attack", "Roll"]:
         if not driver.animator.has_animation(clip):
             printerr("FAIL: missing authored clip ", clip)
