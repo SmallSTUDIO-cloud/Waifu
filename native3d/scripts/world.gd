@@ -287,6 +287,7 @@ func _physics_process(delta: float) -> void:
         preview_action_started = true
     if preview_mode == "combo" and player.combo == 1 and timer > 0.54: _attack()
     if preview_mode == "combo" and player.combo == 2 and timer > 1.0: _attack()
+    if preview_mode == "combo" and player.combo == 3 and timer > 1.46: _attack()
     _update_camera(delta)
     if timer > 8.0: tip_label.visible = false
 
@@ -333,9 +334,12 @@ func _swing_vfx(stage: int) -> void:
     if stage >= 2:
         var echo = _spawn_vfx("echo", player.global_position + Vector3(0, 1.0, 0), stage)
         echo.rotation.y = yaw
-    if stage == 3:
+    if stage >= 3:
         _spawn_vfx("finisher", player.global_position + Vector3(0, 0.035, 0), stage)
-        camera_kick = maxf(camera_kick, 0.45)
+    if stage == 4:
+        var cleave = _spawn_vfx("cleave", player.global_position + player.facing * 1.15 + Vector3(0, 1.0, 0), stage)
+        cleave.rotation.y = yaw
+        camera_kick = maxf(camera_kick, 0.55)
 
 func _dodge() -> void:
     if playing and player.dodge():

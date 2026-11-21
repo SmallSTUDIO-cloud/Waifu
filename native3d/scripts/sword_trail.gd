@@ -40,12 +40,12 @@ func update_trail(delta: float, grip: Node3D, active: bool) -> void:
         var a_tip = to_local(a.tip)
         var b_base = to_local(b.base)
         var b_tip = to_local(b.tip)
-        _vertex(a_base, Color(1.0, 0.09, 0.14, 0.0))
-        _vertex(a_tip, Color(1.0, 0.68, 0.45, alpha_a))
-        _vertex(b_base, Color(1.0, 0.09, 0.14, 0.0))
-        _vertex(a_tip, Color(1.0, 0.68, 0.45, alpha_a))
-        _vertex(b_tip, Color(1.0, 0.68, 0.45, alpha_b))
-        _vertex(b_base, Color(1.0, 0.09, 0.14, 0.0))
+        _vertex(a_base, Color(0.56, 0.20, 1.0, 0.0))
+        _vertex(a_tip, Color(0.92, 0.76, 1.0, alpha_a))
+        _vertex(b_base, Color(0.56, 0.20, 1.0, 0.0))
+        _vertex(a_tip, Color(0.92, 0.76, 1.0, alpha_a))
+        _vertex(b_tip, Color(0.92, 0.76, 1.0, alpha_b))
+        _vertex(b_base, Color(0.56, 0.20, 1.0, 0.0))
     ribbon.surface_end()
 
 func clear_trail() -> void:

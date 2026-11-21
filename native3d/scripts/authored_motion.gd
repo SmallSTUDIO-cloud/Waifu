@@ -72,16 +72,12 @@ func update(delta: float, speed: float, attack_progress: float, dash_progress: f
     if not valid: return
     var desired = "Sword_Idle"
     if dash_progress >= 0.0:
-        desired = "Roll"
+        # A brief upright running lunge reads as an instant evade; the old
+        # full roll made the dress and limbs fold through each other.
+        desired = "Jog_Fwd"
     elif attack_progress >= 0.0:
         desired = "Sword_Attack"
-    elif current == "Jog_Fwd" and speed > 0.55:
-        desired = "Jog_Fwd"
-    elif current == "Walk" and speed > 0.07:
-        desired = "Jog_Fwd" if speed > 0.72 else "Walk"
-    elif speed > 0.72:
-        desired = "Jog_Fwd"
-    elif speed > 0.16:
+    elif speed > (0.07 if current == "Walk" else 0.16):
         desired = "Walk"
     if desired != current or (desired == "Sword_Attack" and current_combo != combo):
         var sync_gait = current in ["Walk", "Jog_Fwd"] and desired in ["Walk", "Jog_Fwd"]
@@ -93,10 +89,10 @@ func update(delta: float, speed: float, attack_progress: float, dash_progress: f
             animator.seek(phase * animator.get_animation(desired).length, true)
     if desired == "Sword_Attack":
         animator.seek(clampf(attack_progress, 0.0, 1.0) * animator.current_animation_length, true)
-    elif desired == "Roll":
-        animator.seek(clampf(dash_progress, 0.0, 1.0) * animator.current_animation_length, true)
+    elif dash_progress >= 0.0:
+        animator.seek((0.10 + 0.25 * clampf(dash_progress, 0.0, 1.0)) * animator.current_animation_length, true)
     else:
-        var rate = 1.0 if desired == "Sword_Idle" else clampf(speed * 1.35, 0.55, 1.3)
+        var rate = 1.0 if desired == "Sword_Idle" else clampf(speed * 1.10, 0.55, 1.1)
         animator.advance(delta * rate)
     # The UAL mannequin faces +Z with its right side at -X; VRoid faces -Z
     # with its right side at +X. Account for that 180-degree facing difference.

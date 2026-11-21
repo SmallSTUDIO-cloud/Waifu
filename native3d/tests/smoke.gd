@@ -95,7 +95,7 @@ func run_test() -> void:
         quit(1)
         return
     for i in range(8): await physics_frame
-    if scene.player.combo != previous_combo % 3 + 1 or scene.player.attack_buffered:
+    if scene.player.combo != previous_combo % 4 + 1 or scene.player.attack_buffered:
         printerr("FAIL: buffered combo did not advance")
         quit(1)
         return

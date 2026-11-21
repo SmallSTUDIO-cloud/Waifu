@@ -29,8 +29,8 @@ func run_test() -> void:
         quit(1)
         return
     driver.update(0.1, 0.9, -1.0, -1.0, 0)
-    if driver.current != "Jog_Fwd":
-        printerr("FAIL: jog state")
+    if driver.current != "Walk":
+        printerr("FAIL: walk state")
         quit(1)
         return
     var leg = scene.player.skeleton.find_bone("J_Bip_L_UpperLeg")
@@ -38,7 +38,7 @@ func run_test() -> void:
     driver.update(0.1, 0.9, -1.0, -1.0, 0)
     var q2 = scene.player.skeleton.get_bone_pose_rotation(leg)
     if absf(q.dot(q2)) > 0.99999:
-        printerr("FAIL: authored jog did not animate")
+        printerr("FAIL: authored walk did not animate")
         quit(1)
         return
     # After blending, the anatomical upper arm and leg directions should match
@@ -55,16 +55,6 @@ func run_test() -> void:
             printerr("FAIL: anatomical retarget direction: ", pair)
             quit(1)
             return
-    driver.update(0.02, 0.61, -1.0, -1.0, 0)
-    if driver.current != "Jog_Fwd":
-        printerr("FAIL: jog hysteresis")
-        quit(1)
-        return
-    driver.update(0.02, 0.50, -1.0, -1.0, 0)
-    if driver.current != "Walk":
-        printerr("FAIL: jog-to-walk transition")
-        quit(1)
-        return
     driver.update(0.02, 0.10, -1.0, -1.0, 0)
     if driver.current != "Walk":
         printerr("FAIL: walk hysteresis")
@@ -76,7 +66,7 @@ func run_test() -> void:
         quit(1)
         return
     driver.update(0.1, 0.0, -1.0, 0.4, 1)
-    if driver.current != "Roll":
+    if driver.current != "Jog_Fwd":
         printerr("FAIL: dodge state")
         quit(1)
         return

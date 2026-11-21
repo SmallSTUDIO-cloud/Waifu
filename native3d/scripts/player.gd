@@ -8,10 +8,10 @@ const AVATAR = preload("res://assets/avatar.glb")
 const SECONDARY = preload("res://scripts/secondary_motion.gd")
 const SWORD_TRAIL = preload("res://scripts/sword_trail.gd")
 const AUTHORED_MOTION = preload("res://scripts/authored_motion.gd")
-const SPEED: float = 4.1
-const DASH_SPEED: float = 7.5
+const SPEED: float = 2.8
+const DASH_SPEED: float = 10.0
 const ATTACK_DURATION: float = 0.58
-const DASH_DURATION: float = 0.42
+const DASH_DURATION: float = 0.27
 var control: Vector2 = Vector2.ZERO
 var facing: Vector3 = Vector3(0, 0, -1)
 var health: int = 100
@@ -40,6 +40,10 @@ var dash_direction: Vector3 = Vector3.FORWARD
 var sword_grip: Node3D
 var sword_trail: MeshInstance3D
 var motion_driver: RefCounted
+var shadow_root: Node3D
+var shadow_skeleton: Skeleton3D
+var shadow_material: StandardMaterial3D
+var shadow_remaining: float = 0.0
 
 func _ready() -> void:
     collision_layer = 2
@@ -64,6 +68,7 @@ func _ready() -> void:
         secondary_motion = SECONDARY.new()
         secondary_motion.setup(skeleton)
         _attach_sword()
+        _create_dodge_shadow()
         sword_trail = SWORD_TRAIL.new()
         add_child(sword_trail)
         var candidate = AUTHORED_MOTION.new()
@@ -84,6 +89,40 @@ func _find_skeleton(node: Node) -> Skeleton3D:
         if found:
             return found
     return null
+
+func _create_dodge_shadow() -> void:
+    # Reuse one skinned silhouette rather than allocating copies each dodge.
+    shadow_root = Node3D.new()
+    get_parent().add_child.call_deferred(shadow_root)
+    var avatar = AVATAR.instantiate()
+    shadow_root.add_child(avatar)
+    shadow_skeleton = _find_skeleton(avatar)
+    shadow_material = StandardMaterial3D.new()
+    shadow_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    shadow_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    shadow_material.albedo_color = Color(0.025, 0.015, 0.055, 0.75)
+    shadow_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    _shadow_meshes(avatar)
+    shadow_root.visible = false
+
+func _shadow_meshes(node: Node) -> void:
+    if node is MeshInstance3D:
+        node.material_override = shadow_material
+        node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    for child in node.get_children():
+        _shadow_meshes(child)
+
+func _show_dodge_shadow() -> void:
+    if not shadow_root or not shadow_root.is_inside_tree() or not shadow_skeleton:
+        return
+    shadow_root.global_transform = model_root.global_transform
+    for i in range(mini(skeleton.get_bone_count(), shadow_skeleton.get_bone_count())):
+        shadow_skeleton.set_bone_pose_position(i, skeleton.get_bone_pose_position(i))
+        shadow_skeleton.set_bone_pose_rotation(i, skeleton.get_bone_pose_rotation(i))
+        shadow_skeleton.set_bone_pose_scale(i, skeleton.get_bone_pose_scale(i))
+    shadow_remaining = 0.30
+    shadow_material.albedo_color.a = 0.75
+    shadow_root.visible = true
 
 func _attach_sword() -> void:
     var hand = skeleton.find_bone("J_Bip_R_Hand")
@@ -110,7 +149,7 @@ func _attach_sword() -> void:
     _sword_piece(grip, Vector3(0, -0.045, 0), Vector3(0.12, 0.022, 0.055), Color(0.50, 0.32, 0.21), 0.65)
     _sword_piece(grip, Vector3(0, 0.079, 0), Vector3(0.045, 0.024, 0.045), Color(0.45, 0.28, 0.19), 0.6)
     _make_blade(grip)
-    _sword_piece(grip, Vector3(0.008, -0.48, -0.014), Vector3(0.009, 0.73, 0.006), Color(0.8, 0.055, 0.1), 0.3, true)
+    _sword_piece(grip, Vector3(0.008, -0.48, -0.014), Vector3(0.009, 0.73, 0.006), Color(0.58, 0.25, 1.0), 0.3, true)
 
 func _pose_gripping_fingers() -> void:
     # VRoid fingers are unanimated by the motion source. Curl them around the
@@ -173,6 +212,10 @@ func _sword_piece(parent: Node3D, pos: Vector3, size: Vector3, color: Color, met
 func _physics_process(delta: float) -> void:
     if not enabled:
         return
+    if shadow_remaining > 0.0:
+        shadow_remaining = maxf(0.0, shadow_remaining - delta)
+        shadow_material.albedo_color.a = 0.75 * shadow_remaining / 0.30
+        if shadow_remaining <= 0.0: shadow_root.visible = false
     attack_timer = maxf(0.0, attack_timer - delta)
     attack_cooldown = maxf(0.0, attack_cooldown - delta)
     combo_timeout = maxf(0.0, combo_timeout - delta)
@@ -213,7 +256,7 @@ func _physics_process(delta: float) -> void:
             if is_instance_valid(enemy) and enemy.has_method("take_damage"):
                 var offset: Vector3 = enemy.global_position - global_position
                 if offset.length() < 2.0 and (offset.length() < 0.7 or facing.dot(offset.normalized()) > 0.12):
-                    hit_enemy.emit(enemy, 2 if combo == 3 else 1)
+                    hit_enemy.emit(enemy, 2 if combo == 4 else 1)
                     energy = minf(100.0, energy + 20.0)
     _animate(delta)
     if sword_trail:
@@ -228,7 +271,7 @@ func attack() -> bool:
             attack_buffered = true
             return true
         return false
-    combo = combo % 3 + 1
+    combo = combo % 4 + 1
     combo_timeout = 1.1
     attack_timer = ATTACK_DURATION
     attack_cooldown = 0.50
@@ -247,9 +290,10 @@ func dodge() -> bool:
     var requested = Vector3(control.x, 0, control.y)
     dash_direction = requested.normalized() if requested.length_squared() > 0.01 else facing
     facing = dash_direction
+    _show_dodge_shadow()
     dash_time = DASH_DURATION
     dash_cooldown = 1.0
-    invulnerable = 0.40
+    invulnerable = DASH_DURATION
     return true
 
 func take_damage(amount: int) -> void:
@@ -290,6 +334,9 @@ func _animate(delta: float) -> void:
         var attack_progress = 1.0 - attack_timer / ATTACK_DURATION if attack_timer > 0.0 else -1.0
         var dash_progress = 1.0 - dash_time / DASH_DURATION if dash_time > 0.0 else -1.0
         motion_driver.update(delta, speed_ratio, attack_progress, dash_progress, combo)
+        var dash_weight = sin(PI * dash_progress) if dash_progress >= 0.0 else 0.0
+        model_root.rotation.x = lerpf(model_root.rotation.x, -0.22 * dash_weight, pose_blend)
+        model_root.rotation.z = lerpf(model_root.rotation.z, turn_lean * 0.5, pose_blend)
     else:
         var gait: float = sin(gait_phase)
         var stride: float = gait * speed_ratio
@@ -316,7 +363,7 @@ func _animate(delta: float) -> void:
         _pose("J_Bip_L_UpperArm", Vector3(-0.08 - dash * 0.30, stride * 0.36 - 0.35 * dash - swing * 0.20 * side, 1.12))
         _pose("J_Bip_L_LowerArm", Vector3(0, -0.20, 0.30 + 0.35 * dash))
         # Shoulder, elbow and wrist all contribute to the sword arc.
-        _pose("J_Bip_R_UpperArm", Vector3(-0.32 * swing if combo == 3 else -0.10 * swing, -0.30 - stride * 0.12 + swing * 1.15 * side, -1.08 + arm_raise * (1.20 if combo == 3 else 0.95)))
+        _pose("J_Bip_R_UpperArm", Vector3(-0.32 * swing if combo == 4 else -0.10 * swing, -0.30 - stride * 0.12 + swing * 1.15 * side, -1.08 + arm_raise * (1.20 if combo == 4 else 0.95)))
         _pose("J_Bip_R_LowerArm", Vector3(0, 0.25 + swing * 0.70 * side, -0.38 - 0.25 * dash - 0.15 * arm_raise))
         _pose("J_Bip_R_Hand", Vector3(0.10, -0.15 + swing * 0.30 * side, 0.12))
     if secondary_motion:

@@ -67,7 +67,11 @@ func run_test() -> void:
     if active_effects().size() != 6:
         fail("finisher should add arc, echo and shockwave")
         return
-    for i in range(20): scene._swing_vfx(3)
+    scene._swing_vfx(4)
+    if active_effects().size() != 10:
+        fail("fourth hit should add the heavy vertical cleave")
+        return
+    for i in range(20): scene._swing_vfx(4)
     if active_effects().size() > 12:
         fail("transient VFX budget exceeded")
         return
