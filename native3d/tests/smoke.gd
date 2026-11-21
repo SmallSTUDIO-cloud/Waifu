@@ -26,6 +26,16 @@ func run_test() -> void:
         return
     scene.player.attack()
     scene.player.dodge()
+    if not scene.player.shadow_root.visible or scene.player.shadow_remaining <= 0.0:
+        printerr("FAIL: dodge afterimage missing")
+        quit(1)
+        return
+    var shadow_start = scene.player.shadow_root.global_position
+    await physics_frame
+    if scene.player.shadow_root.global_position.distance_to(shadow_start) > 0.001:
+        printerr("FAIL: afterimage followed player instead of staying behind")
+        quit(1)
+        return
     scene.player.take_damage(14)
     if scene.player.health != 86:
         printerr("FAIL: dodge invulnerability")
@@ -40,6 +50,10 @@ func run_test() -> void:
     scene.player.facing = Vector3(0, 0, -1)
     scene.player.attack()
     for i in range(20): await physics_frame
+    if scene.player.shadow_root.visible:
+        printerr("FAIL: dodge afterimage did not fade")
+        quit(1)
+        return
     var saw_effect = false
     var impact_in_front = false
     for child in scene.get_children():

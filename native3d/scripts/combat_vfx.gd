@@ -22,8 +22,8 @@ func setup(effect_kind: String, stage: int = 1) -> void:
         # and a bright white-pink cutting edge, as in the reference.
         var radius = 1.55 + 0.12 * (stage - 1)
         _ring_band(mesh, radius - 0.53, radius - 0.23, -92, 92, Color(0.48, 0.12, 1, 0), Color(0.69, 0.32, 1, 0.42), true)
-        _ring_band(mesh, radius - 0.23, radius - 0.06, -92, 92, Color(0.69, 0.32, 1, 0.42), Color(0.94, 0.78, 1, 0.94), true)
-        _ring_band(mesh, radius - 0.06, radius, -92, 92, Color(1, 0.94, 1, 0.98), Color(0.65, 0.25, 1, 0), true)
+        _ring_band(mesh, radius - 0.23, radius - 0.09, -92, 92, Color(0.68, 0.25, 1, 0.66), Color(0.93, 0.76, 1, 1.0), true)
+        _ring_band(mesh, radius - 0.09, radius, -92, 92, Color(1, 0.95, 1, 1.0), Color(0.65, 0.25, 1, 0), true)
         if stage >= 2:
             _petals(mesh, 8 + stage * 3, radius + 0.15)
         rotation_degrees.x = 38.0 if stage == 1 else (48.0 if stage == 2 else 20.0)
@@ -128,7 +128,7 @@ func _process(delta: float) -> void:
     if t >= 1.0:
         queue_free()
         return
-    var fade: float = (1.0 - t) * (1.0 - t)
+    var fade: float = (1.0 - t) * (1.0 - 0.35 * t)
     material.albedo_color = Color(1, 1, 1, fade)
     if kind == "slash":
         shape.rotation.y = spin_direction * lerpf(-0.22, 0.18, t)
