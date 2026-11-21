@@ -3,11 +3,22 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Existing release tag to build and attach (leave empty for build only)'
+        required: false
+        type: string
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -19,3 +30,11 @@ jobs:
         with:
           name: scarlet-veil-web
           path: dist/
+      - name: Attach web build to existing release
+        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          (cd dist && zip -qr ../scarlet-veil-web.zip .)
+          gh release upload "$RELEASE_TAG" scarlet-veil-web.zip --clobber
