@@ -28,29 +28,34 @@ jobs:
       - name: Launch APK on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
-          target: google_apis
+          api-level: 30
+          target: default
           arch: x86_64
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
             trap 'adb logcat -d -v brief > /tmp/android-debug.log; adb exec-out screencap -p > /tmp/android-debug.png || true' EXIT
             set -e
-            echo 'Resize screen'
-            adb shell wm size 1280x720
-            echo 'Install APK'
+            echo '::warning title=Emulator phase::Starting install'
+            adb wait-for-device
+            adb shell input keyevent 82
+            echo '::warning title=Emulator phase::Installing APK'
             adb install -r scarlet-veil-3d-test.apk
-            echo 'Start game'
+            echo '::warning title=Emulator phase::Starting game'
             adb shell monkey -p com.smallstudio.scarletveil3d 1
             sleep 70
-            echo 'Check game process'
+            echo '::warning title=Emulator phase::Checking game process'
             adb shell pidof com.smallstudio.scarletveil3d
-            adb shell input tap 640 430
+            adb shell input tap 320 190
             sleep 10
             adb shell pidof com.smallstudio.scarletveil3d
             adb exec-out screencap -p > /tmp/android-frame.png
             adb logcat -d -s AndroidRuntime:E > /tmp/android-errors.log
             if grep -q 'FATAL EXCEPTION' /tmp/android-errors.log; then cat /tmp/android-errors.log; exit 1; fi
+      - name: Verify frame is not blank
+        run: |
+          python3 -m pip install --quiet Pillow
+          python3 -c 'from PIL import Image; im=Image.open("/tmp/android-frame.png").convert("RGB"); print("size", im.size, "colors", len(im.getcolors(im.width*im.height) or [])); assert len(im.getcolors(im.width*im.height) or []) > 10, "Android frame is blank"'
       - name: Store emulator frame for review
         env:
           GH_TOKEN: ${{ github.token }}
@@ -64,7 +69,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ -f /tmp/android-debug.log ]; then
-            tail -2000 /tmp/android-debug.log > /tmp/android-debug-tail.log
+            grep -i -E "godot|scarlet|fatal|crash|error|exception|activitytask" /tmp/android-debug.log | tail -2000 > /tmp/android-debug-tail.log || true
             python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/android-debug-tail.log","rb").read()).decode(),"encoding":"base64"}))' > /tmp/android-debug.json
             sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/android-debug.json --jq .sha)
             echo "::warning title=Android diagnostics::$sha"
