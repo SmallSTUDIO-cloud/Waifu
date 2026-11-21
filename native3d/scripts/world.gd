@@ -18,12 +18,19 @@ var remaining: int = 0
 var preview_mode: String = ""
 var preview_action_started: bool = false
 var camera_kick: float = 0.0
+var profile_enabled: bool = false
+var profile_time: float = 0.0
+var profile_last_us: int = 0
+var profile_frames: Array[float] = []
+var profile_reported: bool = false
 
 func _ready() -> void:
     _environment()
     _arena()
     player = PLAYER_SCRIPT.new()
     add_child(player)
+    profile_enabled = OS.is_debug_build() and FileAccess.file_exists("user://secondary_profile")
+    player.profile_secondary = profile_enabled
     player.position = Vector3(0, 0.1, 3)
     player.health_changed.connect(_on_health)
     player.hit_enemy.connect(_hit_enemy)
@@ -269,6 +276,24 @@ func start_game() -> void:
     playing = true
     _on_health(100)
     _refresh_count()
+
+# Optional debug-only benchmark: create user://secondary_profile before launch.
+# Wall-frame timing includes vsync and all game work, not just the solver.
+func _process(delta: float) -> void:
+    if not profile_enabled or not playing or profile_reported: return
+    profile_time += delta
+    var now = Time.get_ticks_usec()
+    if profile_time > 2.0 and profile_last_us > 0:
+        profile_frames.append(float(now - profile_last_us) / 1000.0)
+    profile_last_us = now
+    if profile_time >= 10.0 and not profile_frames.is_empty():
+        profile_frames.sort()
+        var total = 0.0
+        for sample in profile_frames: total += sample
+        var p95 = profile_frames[clampi(int(ceil(profile_frames.size() * 0.95)) - 1, 0, profile_frames.size() - 1)]
+        print("SECONDARY_PROFILE frames=%d avg_frame_ms=%.2f p95_frame_ms=%.2f solver_steps=%d avg_solver_us=%.1f max_solver_us=%d quality=%d" % [profile_frames.size(), total / profile_frames.size(), p95, player.profile_secondary_steps, float(player.profile_secondary_us) / maxf(1, player.profile_secondary_steps), player.profile_secondary_max_us, player.secondary_motion.quality])
+        profile_reported = true
+        player.profile_secondary = false
 
 func _physics_process(delta: float) -> void:
     if not playing:

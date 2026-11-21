@@ -44,6 +44,11 @@ var shadow_root: Node3D
 var shadow_skeleton: Skeleton3D
 var shadow_material: StandardMaterial3D
 var shadow_remaining: float = 0.0
+# Enabled only by the opt-in debug profiler marker.
+var profile_secondary: bool = false
+var profile_secondary_us: int = 0
+var profile_secondary_max_us: int = 0
+var profile_secondary_steps: int = 0
 
 func _ready() -> void:
     collision_layer = 2
@@ -368,4 +373,12 @@ func _animate(delta: float) -> void:
         _pose("J_Bip_R_LowerArm", Vector3(0, 0.25 + swing * 0.70 * side, -0.38 - 0.25 * dash - 0.15 * arm_raise))
         _pose("J_Bip_R_Hand", Vector3(0.10, -0.15 + swing * 0.30 * side, 0.12))
     if secondary_motion:
-        secondary_motion.update(delta)
+        if profile_secondary:
+            var started = Time.get_ticks_usec()
+            secondary_motion.update(delta)
+            var elapsed = Time.get_ticks_usec() - started
+            profile_secondary_us += elapsed
+            profile_secondary_max_us = maxi(profile_secondary_max_us, elapsed)
+            profile_secondary_steps += 1
+        else:
+            secondary_motion.update(delta)

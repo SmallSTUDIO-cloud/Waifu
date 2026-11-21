@@ -79,6 +79,7 @@ jobs:
             adb shell input keyevent 82
             echo '::warning title=Emulator phase::Installing APK'
             adb install -r "$RUNNER_TEMP/secondary-debug.apk"
+            adb shell run-as com.smallstudio.scarletveil3d touch files/secondary_profile
             echo '::warning title=Emulator phase::Starting game'
             adb logcat -c
             adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.smallstudio.scarletveil3d
@@ -90,15 +91,17 @@ jobs:
             grep -i "com.smallstudio.scarletveil3d" /tmp/android-activity.txt || true
             adb exec-out screencap -p > /tmp/android-menu.png
             adb shell input tap 320 190
-            sleep 10
+            sleep 2
             adb shell dumpsys gfxinfo com.smallstudio.scarletveil3d reset > /dev/null
-            adb shell input swipe 120 650 120 500 3000
-            adb shell input tap 1190 660
-            adb shell input tap 1050 660
-            sleep 10
+            # Emulator is 640x320 in landscape; touch positions are physical pixels.
+            adb shell input swipe 35 280 35 210 2500
+            adb shell input tap 590 280
+            adb shell input tap 530 280
+            sleep 8
             adb shell dumpsys gfxinfo com.smallstudio.scarletveil3d framestats > /tmp/android-framestats.txt
             adb shell pidof com.smallstudio.scarletveil3d
             adb exec-out screencap -p > /tmp/android-frame.png
+            adb logcat -d -v brief > /tmp/android-live.log
             adb logcat -d -s AndroidRuntime:E > /tmp/android-errors.log
             if grep -q 'FATAL EXCEPTION' /tmp/android-errors.log; then cat /tmp/android-errors.log; exit 1; fi
       - name: Summarize Android emulator frame data
@@ -124,7 +127,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if [ -f /tmp/android-debug.log ]; then
-            { cat /tmp/android-activity.txt /tmp/android-framestats.txt 2>/dev/null; grep -i -E 'godot|smallstudio|fatal|exception|error:' /tmp/android-live.log 2>/dev/null | tail -3000; } > /tmp/android-debug-tail.log || true
+            { cat /tmp/android-activity.txt /tmp/android-framestats.txt 2>/dev/null; grep -i -E 'godot|smallstudio|SECONDARY_PROFILE|fatal|exception|error:' /tmp/android-live.log 2>/dev/null | tail -3000; } > /tmp/android-debug-tail.log || true
             python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/android-debug-tail.log","rb").read()).decode(),"encoding":"base64"}))' > /tmp/android-debug.json
             sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/android-debug.json --jq .sha)
             echo "::warning title=Android diagnostics::$sha"
