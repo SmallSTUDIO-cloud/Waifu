@@ -67,6 +67,7 @@ func _ready() -> void:
             bone_indices[bone_name] = i
         secondary_motion = SECONDARY.new()
         secondary_motion.setup(skeleton)
+        secondary_motion.set_quality(int(ProjectSettings.get_setting("secondary_motion/quality", 2)))
         _attach_sword()
         _create_dodge_shadow()
         sword_trail = SWORD_TRAIL.new()

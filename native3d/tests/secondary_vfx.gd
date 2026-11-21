@@ -18,9 +18,13 @@ func run_test() -> void:
     var sim = player.secondary_motion
     var kinds = {}
     for joint in sim.joints: kinds[joint.kind] = true
-    for kind in ["hair", "skirt", "sleeve", "body"]:
+    for kind in ["hair", "skirt", "sleeve"]:
         if not kinds.has(kind):
             fail("missing secondary category " + kind)
+            return
+    for joint in sim.joints:
+        if "Bust" in player.skeleton.get_bone_name(joint.bone):
+            fail("anatomy bone must not be simulated")
             return
     sim.reset()
     sim.update(1.0 / 60.0)
