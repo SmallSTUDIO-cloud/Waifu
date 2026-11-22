@@ -1,4 +1,5 @@
 name: Native Android emulator smoke
+# Debug-only quality and shadow comparison; no build artifacts are published.
 on:
   push:
     paths:

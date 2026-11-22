@@ -63,14 +63,15 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 -m pip install --quiet Pillow
-          for action in authored-review-front authored-review-side authored-review-rear authored-combo authored-dodge authored-move legacy-move legacy-dodge authored-settings; do
+          for action in baseline-review authored-review-front authored-review-side authored-review-rear authored-combo authored-dodge authored-move legacy-move legacy-dodge authored-settings; do
             mkdir -p "/tmp/preview-$action"
             frames=30
             if [[ "$action" = *combo ]]; then frames=66; fi
-            if [[ "$action" = *review-* ]]; then frames=90; fi
+            if [[ "$action" = *review* ]]; then frames=90; fi
             preview_action="$action"
             extra=""
             if [[ "$action" = authored-* ]]; then preview_action="${action#authored-}"; extra="--preview-authored"; fi
+            if [[ "$action" = baseline-review ]]; then preview_action="review-front"; extra="--legacy-walk --legacy-dash"; fi
             if [[ "$action" = legacy-move ]]; then preview_action="move"; extra="--legacy-walk"; fi
             if [[ "$action" = legacy-dodge ]]; then preview_action="dodge"; extra="--legacy-dash"; fi
             xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --write-movie "/tmp/preview-$action/frame.png" --fixed-fps 30 --quit-after "$frames" -- "--preview-$preview_action" $extra > "/tmp/preview-$action.log" 2>&1
