@@ -37,7 +37,8 @@ jobs:
           timeout 180 godot --headless --path native3d --script res://tests/quality_settings.gd 2>&1 | tee /tmp/quality-settings.log
           timeout 180 godot --headless --path native3d --script res://tests/touch_camera.gd 2>&1 | tee /tmp/touch-camera.log
           timeout 180 godot --headless --path native3d --script res://tests/enemy_combat.gd 2>&1 | tee /tmp/enemy-combat.log
-          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/enemy-combat.log | grep -v 'Parameter "t" is null' || true)
+          timeout 180 godot --headless --path native3d --script res://tests/character_select.gd 2>&1 | tee /tmp/character-select.log
+          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/enemy-combat.log /tmp/character-select.log | grep -v 'Parameter "t" is null' || true)
           if [ -n "$errors" ]; then
             echo "::error::$errors"
             exit 1
@@ -65,7 +66,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 -m pip install --quiet Pillow
-          for action in baseline-review authored-review-front authored-review-side authored-review-rear authored-combo authored-dodge authored-move legacy-move legacy-dodge authored-settings; do
+          for action in baseline-review authored-review-front authored-review-side authored-review-rear authored-combo authored-dodge authored-move legacy-move legacy-dodge authored-settings tesla-review; do
             mkdir -p "/tmp/preview-$action"
             frames=30
             if [[ "$action" = *combo ]]; then frames=66; fi
@@ -76,6 +77,7 @@ jobs:
             if [[ "$action" = baseline-review ]]; then preview_action="review-front"; extra="--legacy-walk --legacy-dash"; fi
             if [[ "$action" = legacy-move ]]; then preview_action="move"; extra="--legacy-walk"; fi
             if [[ "$action" = legacy-dodge ]]; then preview_action="dodge"; extra="--legacy-dash"; fi
+            if [[ "$action" = tesla-review ]]; then preview_action="review-front"; extra="--character-tesla"; fi
             xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --write-movie "/tmp/preview-$action/frame.png" --fixed-fps 30 --quit-after "$frames" -- "--preview-$preview_action" $extra > "/tmp/preview-$action.log" 2>&1
             if grep -E 'SCRIPT ERROR|^ERROR:' "/tmp/preview-$action.log"; then exit 1; fi
             frame_number=12
@@ -107,7 +109,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/enemy-combat.log /tmp/render.log 2>/dev/null > /tmp/diagnostics.txt || true
+          cat /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/enemy-combat.log /tmp/character-select.log /tmp/render.log 2>/dev/null > /tmp/diagnostics.txt || true
           python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/diagnostics.txt","rb").read()).decode(),"encoding":"base64"}))' > /tmp/diagnostics.json
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/diagnostics.json --jq .sha)
           echo "::warning title=Diagnostics::$sha"
