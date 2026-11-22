@@ -138,8 +138,11 @@ func run_test() -> void:
     for e in get_nodes_in_group("enemies"):
         if e != e1 and e.get("kind") == "large" and not e.get("dead"): e2 = e
     if e1 and e2:
-        e1.global_position = player.global_position + Vector3(0, 0.1, -2)
-        e2.global_position = e1.global_position + Vector3(0.2, 0, 0)
+        # Keep both in chase mode away from the player so only separation acts.
+        e1.timer = 5.0
+        e2.timer = 5.0
+        e1.global_position = Vector3(0, 0.1, -6)
+        e2.global_position = Vector3(0.2, 0.1, -6)
         for i in range(60): await physics_frame
         var gap = Vector2(e1.global_position.x - e2.global_position.x, e1.global_position.z - e2.global_position.z).length()
         check(gap > 0.5, "enemies did not separate")
