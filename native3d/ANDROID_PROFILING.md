@@ -37,3 +37,7 @@ Run `45022974113` at `f57e846` passed with API 30 x86_64, debug build and softwa
 | Full / off | 53.09 ms | 98.37 ms | 600.0 µs | 33.4 MiB |
 
 The enabled builds recorded one pose-copy sample of 64–72 µs; the disabled build recorded zero. These single short samples are noisy and do **not** isolate shadow GPU cost, total memory, thermals, or prove a statistically meaningful speedup. Physical-device measurements remain required; no new APK was published.
+
+### Robot-enemy emulator smoke
+
+Run `45034095965` at `56c43b8` passed with the CC0 robot enemies active: the scripted sequence took real melee hits (screenshot shows both bruisers on the player with a red warning ring, HP reduced), all physics tiers completed, and no APK was published. Emulator frame samples remain debug/software-rendered and are not physical-device evidence.

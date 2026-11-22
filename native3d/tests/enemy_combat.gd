@@ -165,5 +165,5 @@ func run_test() -> void:
 
     scene.queue_free()
     if failures == 0:
-        print("PASS enemy robots: models, animations, melee, ranged bolts, dodge, balance, separation")
+        print("PASS enemy robots: models, posing, melee, ranged bolts, dodge, balance, separation")
     quit(1 if failures else 0)
