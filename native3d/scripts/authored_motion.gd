@@ -3,6 +3,9 @@ extends RefCounted
 # skeletons share an ancestor, and each target local pose is reconstructed from
 # the already-posed target parent. No motion-source mesh is rendered.
 const SOURCE = preload("res://assets/quaternius-motion.glb")
+const COMBO_SOURCE = preload("res://assets/quaternius-combo.glb")
+const COMBO_CLIPS = ["Sword_Light_A", "Sword_Light_B", "Sword_Heavy_B", "Sword_Heavy_C"]
+const COMBO_NAMES = ["pelvis", "spine_01", "spine_02", "spine_03", "neck_01", "Head", "clavicle_l", "upperarm_l", "lowerarm_l", "hand_l", "clavicle_r", "upperarm_r", "lowerarm_r", "hand_r", "thigh_l", "calf_l", "foot_l", "ball_l", "thigh_r", "calf_r", "foot_r", "ball_r"]
 const BONE_MAP = {
     "J_Bip_C_Hips": "DEF-hips",
     "J_Bip_C_Spine": "DEF-spine.001",
@@ -29,6 +32,10 @@ var source_hips: int = -1
 var target_hips: int = -1
 var target_hips_rest_position: Vector3
 var valid: bool = false
+var combo_source: Node3D
+var combo_rig: Skeleton3D
+var combo_animator: AnimationPlayer
+var combo_mapped: Array[Dictionary] = []
 
 func setup(parent: Node3D, target: Skeleton3D) -> bool:
     target_rig = target
@@ -55,6 +62,22 @@ func setup(parent: Node3D, target: Skeleton3D) -> bool:
         mapped.append({"target": index, "source": src,
             "src_rest": source_rig.get_bone_global_rest(src).basis.get_rotation_quaternion(),
             "dst_rest": target_rig.get_bone_global_rest(index).basis.get_rotation_quaternion()})
+    combo_source = COMBO_SOURCE.instantiate()
+    combo_source.visible = false
+    parent.add_child(combo_source)
+    combo_rig = _find(combo_source, "Skeleton3D") as Skeleton3D
+    combo_animator = _find(combo_source, "AnimationPlayer") as AnimationPlayer
+    if combo_rig and combo_animator:
+        combo_animator.callback_mode_process = AnimationMixer.ANIMATION_CALLBACK_MODE_PROCESS_MANUAL
+        var targets = BONE_MAP.keys()
+        for i in range(targets.size()):
+            var target_index = target_rig.find_bone(targets[i])
+            var source_index = combo_rig.find_bone(COMBO_NAMES[i])
+            if target_index >= 0 and source_index >= 0:
+                combo_mapped.append({"target": target_index, "source": source_index,
+                    "src_rest": combo_rig.get_bone_global_rest(source_index).basis.get_rotation_quaternion(),
+                    "dst_rest": target_rig.get_bone_global_rest(target_index).basis.get_rotation_quaternion()})
+        combo_mapped.sort_custom(func(a, b): return a.target < b.target)
     source_hips = source_rig.find_bone("DEF-hips")
     target_hips = target_rig.find_bone("J_Bip_C_Hips")
     if target_hips >= 0: target_hips_rest_position = target_rig.get_bone_pose_position(target_hips)
@@ -71,24 +94,30 @@ func _find(node: Node, type: String) -> Node:
 func update(delta: float, speed: float, attack_progress: float, dash_progress: float, combo: int) -> void:
     if not valid: return
     var desired = "Sword_Idle"
+    var use_combo = attack_progress >= 0.0 and dash_progress < 0.0 and combo_mapped.size() == BONE_MAP.size() and combo_animator != null
+    if use_combo:
+        use_combo = combo_animator.has_animation(COMBO_CLIPS[clampi(combo - 1, 0, 3)])
     if dash_progress >= 0.0:
         # A brief upright running lunge reads as an instant evade; the old
         # full roll made the dress and limbs fold through each other.
         desired = "Jog_Fwd"
     elif attack_progress >= 0.0:
-        desired = "Sword_Attack"
+        desired = COMBO_CLIPS[clampi(combo - 1, 0, 3)] if use_combo else "Sword_Attack"
     elif speed > (0.07 if current == "Walk" else 0.16):
         desired = "Walk"
-    if desired != current or (desired == "Sword_Attack" and current_combo != combo):
-        var sync_gait = current in ["Walk", "Jog_Fwd"] and desired in ["Walk", "Jog_Fwd"]
+    var active_animator = combo_animator if use_combo else animator
+    var active_rig = combo_rig if use_combo else source_rig
+    var active_mapped = combo_mapped if use_combo else mapped
+    if desired != current or (attack_progress >= 0.0 and current_combo != combo):
+        var sync_gait = not use_combo and current in ["Walk", "Jog_Fwd"] and desired in ["Walk", "Jog_Fwd"]
         var phase = animator.current_animation_position / maxf(animator.current_animation_length, 0.001) if sync_gait else 0.0
         current = desired
         current_combo = combo
-        animator.play(desired)
+        active_animator.play(desired)
         if sync_gait:
-            animator.seek(phase * animator.get_animation(desired).length, true)
-    if desired == "Sword_Attack":
-        animator.seek(clampf(attack_progress, 0.0, 1.0) * animator.current_animation_length, true)
+            active_animator.seek(phase * active_animator.get_animation(desired).length, true)
+    if attack_progress >= 0.0 and dash_progress < 0.0:
+        active_animator.seek(clampf(attack_progress, 0.0, 1.0) * active_animator.current_animation_length, true)
     elif dash_progress >= 0.0:
         animator.seek((0.10 + 0.25 * clampf(dash_progress, 0.0, 1.0)) * animator.current_animation_length, true)
     else:
@@ -96,14 +125,14 @@ func update(delta: float, speed: float, attack_progress: float, dash_progress: f
         animator.advance(delta * rate)
     # The UAL mannequin faces +Z with its right side at -X; VRoid faces -Z
     # with its right side at +X. Account for that 180-degree facing difference.
-    var source_to_target: Quaternion = Quaternion(Vector3.UP, PI) * (target_rig.global_basis.inverse() * source_rig.global_basis).get_rotation_quaternion()
+    var source_to_target: Quaternion = Quaternion(Vector3.UP, PI) * (target_rig.global_basis.inverse() * active_rig.global_basis).get_rotation_quaternion()
     var source_height = source_rig.get_bone_global_pose(source_hips).origin.y - source_rig.get_bone_global_rest(source_hips).origin.y
     var pelvis_offset = clampf(source_height, -0.6, 0.12) if desired == "Roll" else 0.0
     var pelvis_position = target_rig.get_bone_pose_position(target_hips)
     target_rig.set_bone_pose_position(target_hips, pelvis_position.lerp(target_hips_rest_position + Vector3.UP * pelvis_offset, 1.0 - exp(-delta * 22.0)))
     var blend = 1.0 - exp(-delta * (26.0 if attack_progress >= 0.0 or dash_progress >= 0.0 else 14.0))
-    for item in mapped:
-        var source_pose = source_rig.get_bone_global_pose(item.source).basis.get_rotation_quaternion()
+    for item in active_mapped:
+        var source_pose = active_rig.get_bone_global_pose(item.source).basis.get_rotation_quaternion()
         var change: Quaternion = source_pose * (item.src_rest as Quaternion).inverse()
         var desired_global: Quaternion = source_to_target * change * source_to_target.inverse() * item.dst_rest
         var parent_index = target_rig.get_bone_parent(item.target)

@@ -61,10 +61,20 @@ func run_test() -> void:
         quit(1)
         return
     driver.update(0.1, 0.0, 0.4, -1.0, 1)
-    if driver.current != "Sword_Attack":
+    if driver.current != "Sword_Light_A":
         printerr("FAIL: attack state")
         quit(1)
         return
+    if driver.combo_mapped.size() != 22:
+        printerr("FAIL: combo rig mapping")
+        quit(1)
+        return
+    for stage in range(1, 5):
+        driver.update(0.1, 0.0, 0.4, -1.0, stage)
+        if driver.current != driver.COMBO_CLIPS[stage - 1]:
+            printerr("FAIL: distinct combo stage ", stage)
+            quit(1)
+            return
     driver.update(0.1, 0.0, -1.0, 0.4, 1)
     if driver.current != "Jog_Fwd":
         printerr("FAIL: dodge state")
