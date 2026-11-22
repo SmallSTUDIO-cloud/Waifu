@@ -101,7 +101,7 @@ func _constrain_skirt(joint: Dictionary, base: Quaternion, proposed: Quaternion)
     var angle = base.angle_to(proposed)
     var length = rig.get_bone_pose_position(joint.child).length()
     var fraction = 1.0
-    # Guard two points per chain segment. Rotation sweep samples catch a tip
+    # Guard two points per chain segment. Conservative rotation sweeps catch a tip
     # passing through a capsule even when both end poses are outside.
     for segment in leg_segments:
         var a: Vector3 = segment[0]
@@ -112,21 +112,26 @@ func _constrain_skirt(joint: Dictionary, base: Quaternion, proposed: Quaternion)
             if initial < LEG_RADIUS: continue # Authored pose already intersects.
             var max_travel = 2.0 * length * along * sin(minf(angle, PI) * 0.5)
             if initial > LEG_RADIUS + max_travel: continue
-            var last_safe = 0.0
-            for step in range(1, 5):
-                var probe = fraction * float(step) / 4.0
-                var point = _skirt_point(joint, base.slerp(proposed, probe), parent_pose, along)
-                if _segment_distance(point, a, b) < LEG_RADIUS:
-                    var lo = last_safe
-                    var hi = probe
-                    for _i in range(6):
-                        var mid = (lo + hi) * 0.5
-                        var midpoint = _skirt_point(joint, base.slerp(proposed, mid), parent_pose, along)
-                        if _segment_distance(midpoint, a, b) >= LEG_RADIUS: lo = mid
-                        else: hi = mid
-                    fraction = minf(fraction, lo)
+            # Distance to a capsule is 1-Lipschitz. Bound the point's arc
+            # speed so each advance remains on the safe side even for a narrow
+            # crossing between fixed samples. If the iteration cap is reached,
+            # keep the last proven-safe pose rather than jumping through it.
+            var basis_scale = parent_pose.basis.get_scale().abs()
+            var scale_bound = maxf(basis_scale.x, maxf(basis_scale.y, basis_scale.z))
+            var speed_bound = maxf(length * along * angle * scale_bound, 0.000001)
+            var safe = 0.0
+            for _i in range(20):
+                var point = _skirt_point(joint, base.slerp(proposed, safe), parent_pose, along)
+                var gap = _segment_distance(point, a, b) - LEG_RADIUS
+                if gap <= 0.0001:
+                    fraction = minf(fraction, safe)
                     break
-                last_safe = probe
+                var advance = gap / speed_bound
+                if safe + advance >= fraction:
+                    safe = fraction
+                    break
+                safe += advance * 0.95
+            fraction = minf(fraction, safe)
     return base.slerp(proposed, fraction)
 
 func update(delta: float) -> void:

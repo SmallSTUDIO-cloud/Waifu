@@ -128,6 +128,15 @@ func run_test() -> void:
     if base.angle_to(midpoint_limited) >= base.angle_to(desired) - 0.001:
         fail("mid-segment capsule crossing missed")
         return
+    # Narrow crossing centered between the old four fixed sweep samples.
+    var crossing_angle = PI / 16.0
+    rig.set_bone_rest(3, Transform3D(Basis.IDENTITY, Vector3(cos(crossing_angle), -sin(crossing_angle), -0.5)))
+    rig.reset_bone_poses()
+    probe._cache_leg_segments()
+    var narrow_sweep = probe._constrain_skirt(cloth, base, Quaternion(Vector3.FORWARD, PI / 2.0))
+    if base.angle_to(narrow_sweep) >= crossing_angle:
+        fail("narrow between-sample capsule crossing missed")
+        return
     rig.queue_free()
     print("PASS secondary categories, bounds, settle, animation ownership, capsule math, quality modes")
     quit(0)
