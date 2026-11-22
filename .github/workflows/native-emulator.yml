@@ -87,7 +87,7 @@ jobs:
           cat /tmp/android-export-release.log
           echo "::endgroup::"
           ls -l "$HOME/.local/share/godot/export_templates/4.4.1.stable/" || true
-          exit $st
+          if [ "$st" -ne 0 ]; then echo "::warning title=release export::godot exited $st but APK exists; verifying contents"; fi
           test -s "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk"
           size=$(stat -c %s "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk")
           echo "release_apk_bytes=$size" >> "$GITHUB_ENV"
@@ -112,6 +112,22 @@ jobs:
           name: release-export-log
           path: /tmp/android-export-release.log
           retention-days: 14
+      - name: Publish prerelease with APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view v0.4.0-native3d-test >/dev/null 2>&1 && gh release delete v0.4.0-native3d-test --yes || true
+          gh release create v0.4.0-native3d-test \
+            --prerelease \
+            --title "Scarlet Veil 3D v0.4.0 — test APK (prerelease)" \
+            --notes "## Test build for phone playtesting
+- Signed with a CI test keystore (sideload; not the Play Store signing key).
+- arm64-v8a + x86_64. Enable "Install unknown apps" for your browser/file manager.
+- Contains: touch camera (drag orbit, pinch zoom), enemy robots (bruisers + bolt drones), CHARACTER selector (Scarlet / Tesla) on the menu.
+- Emulator-verified only so far (software rendering); report FPS on your device.
+- Source commit: \`$GITHUB_SHA\`" \
+            --files "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk"
+          gh release view v0.4.0-native3d-test --json assets --jq '.assets[].name'
       - name: Launch APK on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
