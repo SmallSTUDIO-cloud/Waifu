@@ -79,7 +79,15 @@ jobs:
           set -o pipefail
           sed -i 's/profile_debug=true/profile_debug=false/' native3d/project.godot
           sed -i 's/profile_shadow_enabled=false/profile_shadow_enabled=true/' native3d/project.godot
+          set +e
           godot --headless --path native3d --export-release Android "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" 2>&1 | tee /tmp/android-export-release.log
+          st=${PIPESTATUS[0]}
+          set -e
+          echo "::group::release export log"
+          cat /tmp/android-export-release.log
+          echo "::endgroup::"
+          ls -l "$HOME/.local/share/godot/export_templates/4.4.1.stable/" || true
+          exit $st
           test -s "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk"
           size=$(stat -c %s "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk")
           echo "release_apk_bytes=$size" >> "$GITHUB_ENV"
