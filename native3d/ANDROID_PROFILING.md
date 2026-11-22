@@ -12,3 +12,15 @@ The automated Android job is a debug x86_64 emulator using ANGLE/SwiftShader. It
 6. Film the front, side and rear of the character through walk, stop, attack and dodge. Check dress coverage and visible clipping at normal speed and frame-by-frame. Mark any failed poses with timestamps. Neither bone proxies nor automated tests establish whole-mesh collision safety.
 
 Record all results in a separate device report, including failure cases and whether the 16.67 ms/frame target was met. Do not infer sustained device FPS from emulator or debug-only measurements. Running and jumping are not currently implemented in gameplay; do not mark them as verified.
+
+## Emulator-only comparison (2026-11-22)
+
+Run `44980064667`, debug build, API 30 x86_64, 640×320, ANGLE/SwiftShader; one short scripted trial per tier, 2-second warmup and 10-second total profile window. The table shows measured Godot wall-frame p50/p95 and mean secondary-update CPU cost, not GPU timings:
+
+| Physics tier | p50 frame | p95 frame | Mean secondary update |
+| --- | ---: | ---: | ---: |
+| Off | 57.31 ms | 104.73 ms | 7.9 µs |
+| Reduced | 56.83 ms | 99.54 ms | 460.4 µs |
+| Full | 58.93 ms | 118.42 ms | 738.5 µs |
+
+One shadow pose-copy sample per tier was 84, 67 and 68 µs respectively; this does not measure shadow GPU time or duplicated mesh memory. Godot static memory read 33.5 MiB for each, excluding other allocations. These single, short software-rendered debug trials are noisy and not physical-phone or thermal data; they cannot establish the 60 FPS target or a statistically reliable before/after performance comparison. Full mesh coverage and clipping remain unverified on-device. No APK was published.
