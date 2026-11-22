@@ -33,12 +33,6 @@ func run_test() -> void:
     check(kinds.count("large") == 2 and kinds.count("small") == 2, "expected two bruisers and two drones")
     for e in enemies:
         check(e.model_root != null and e.flash_materials.size() > 0, "robot model and materials missing")
-        check(e.animator != null, "robot AnimationPlayer missing")
-        var clips = e.animator.get_animation_list() if e.animator else []
-        if e.kind == "large":
-            check(clips.has("Walk") and clips.has("Punch") and clips.has("Death"), "bruiser clips missing: %s" % str(clips))
-        else:
-            check(clips.has("Flying_Idle") and clips.has("HitReact") and clips.has("Death"), "drone clips missing: %s" % str(clips))
         var meshes: int = 0
         var stack = [e.model_root]
         while not stack.is_empty():
@@ -70,6 +64,7 @@ func run_test() -> void:
     check(player.health == hp_before, "bruiser hit from 6m without windup")
     for i in range(40): await physics_frame
     check(bruiser.mode == "chase" and bruiser.global_position.distance_to(player.global_position) < 5.5, "bruiser did not chase")
+    check(bruiser.model_root.rotation.x > 0.02, "bruiser did not lean while chasing")
     bruiser.global_position = player.global_position + Vector3(0, 0, -1.2)
     bruiser.timer = 0.0
     player.invulnerable = 0.0
@@ -154,6 +149,15 @@ func run_test() -> void:
         e.take_damage(99)
     await process_frame
     check(scene.remaining == 0 and not scene.playing, "victory after defeating all robots")
+    var fallen = false
+    for e in scene.get_children():
+        if e.get("kind") and e.get("dead") and e.model_root and e.model_root.rotation.x < -0.4:
+            fallen = true
+    for i in range(40): await physics_frame
+    for e in scene.get_children():
+        if e.get("kind") and e.get("dead") and is_instance_valid(e.model_root) and e.model_root.rotation.x < -0.8:
+            fallen = true
+    check(fallen, "destroyed robot did not fall over")
     check(get_nodes_in_group("enemies").is_empty(), "defeated robots removed from group")
 
     scene.queue_free()

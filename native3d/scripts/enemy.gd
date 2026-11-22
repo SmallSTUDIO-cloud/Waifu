@@ -5,8 +5,9 @@ signal defeated
 signal struck(position: Vector3)
 signal fired(from: Vector3, direction: Vector3)
 
-const MODEL_SMALL = preload("res://assets/quaternius-enemy-small.glb")
-const MODEL_LARGE = preload("res://assets/quaternius-enemy-large.glb")
+# One CC0 robot model, tinted per combat role. It has no skeleton, so pose
+# comes from bounded procedural lean, recoil and a fall-over death.
+const MODEL_ROBOT = preload("res://assets/enemy-robot.glb")
 
 # Balance-tuned combat constants: telegraphed, dodgeable, and bounded so a
 # full encounter cannot burst the 100 HP player faster than they can react.
@@ -65,15 +66,34 @@ func _ready() -> void:
 func _build_model() -> void:
     model_root = Node3D.new()
     add_child(model_root)
-    var model = (MODEL_SMALL if kind == "small" else MODEL_LARGE).instantiate()
+    var model = MODEL_ROBOT.instantiate()
     model_root.add_child(model)
-    # Normalize each imported model to a known height with its feet at y=0.
+    # Normalize the imported model to a known height with its feet at y=0.
     var bounds = _model_aabb(model)
     var target_height = SMALL_HEIGHT if kind == "small" else LARGE_HEIGHT
     var scale_factor = target_height / maxf(bounds.size.y, 0.001)
     model.scale = Vector3.ONE * scale_factor
     model.position.y = -bounds.position.y * scale_factor
     _collect(model)
+    _add_visor(bounds, scale_factor)
+
+func _add_visor(bounds: AABB, scale_factor: float) -> void:
+    # Glowing hostile eye strip on the face side (+Z), scaled with the model.
+    var visor = MeshInstance3D.new()
+    var strip = BoxMesh.new()
+    var final = AABB(bounds.position * scale_factor + Vector3(0, -bounds.position.y * scale_factor, 0), bounds.size * scale_factor)
+    strip.size = Vector3(final.size.x * 0.42, final.size.y * 0.075, 0.035)
+    visor.mesh = strip
+    var visor_material = StandardMaterial3D.new()
+    visor_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    visor_material.albedo_color = Color(1, 0.12, 0.16)
+    visor_material.emission_enabled = true
+    visor_material.emission = Color(1, 0.1, 0.12)
+    visor_material.emission_energy_multiplier = 2.6
+    visor.material_override = visor_material
+    visor.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    visor.position = Vector3(final.get_center().x, final.position.y + final.size.y * 0.80, final.position.z + final.size.z - 0.02)
+    model_root.add_child(visor)
 
 func _model_aabb(root: Node) -> AABB:
     var result := AABB(Vector3.ZERO, Vector3.ZERO)
@@ -119,6 +139,13 @@ func _collect(node: Node) -> void:
             source = node.mesh.surface_get_material(0)
         if source is BaseMaterial3D:
             var material: BaseMaterial3D = source.duplicate()
+            # Role tints: the bruiser is darker gunmetal, the drone cooler blue.
+            if kind == "small":
+                material.albedo_color = Color(0.62, 0.68, 0.78)
+            else:
+                material.albedo_color = Color(0.42, 0.42, 0.48)
+            material.metallic = 0.65
+            material.roughness = 0.38
             node.material_override = material
             flash_materials.append(material)
     for child in node.get_children():
@@ -165,13 +192,17 @@ func _build_telegraphs() -> void:
     sight.visible = false
     add_child(sight)
 
-func _play(name: String) -> void:
-    if animator and animator.has_animation(name) and current_anim != name:
-        animator.play(name)
-        current_anim = name
+func _play(_name: String) -> void:
+    # The robot model is static; pose feedback comes from lean/recoil below.
+    return
 
 func _muzzle() -> Vector3:
     return global_position + Vector3(0, aim_height, 0) + Vector3(sin(rotation.y), 0, cos(rotation.y)) * 0.45
+
+func _process(delta: float) -> void:
+    if dead and model_root:
+        # Fall over backwards when destroyed.
+        model_root.rotation.x = lerpf(model_root.rotation.x, -1.35, 1.0 - exp(-delta * 5.0))
 
 func _physics_process(delta: float) -> void:
     if not enabled or dead or not is_instance_valid(target):
@@ -224,7 +255,13 @@ func _physics_process(delta: float) -> void:
         position.x += velocity.x * delta
         position.z += velocity.z * delta
         model_root.position.y = sin(anim_time * 2.1 + hover_phase) * 0.05
-        model_root.rotation.x = lerpf(model_root.rotation.x, -0.06, 1.0 - exp(-delta * 3.0))
+    if not dead:
+        # Lean into movement so the static model still reads as alive.
+        var lean = 0.16 if move_dir.length_squared() > 0.01 else 0.0
+        if kind == "small": lean *= 0.45
+        if stagger > 0.0: lean = -0.20
+        model_root.rotation.x = lerpf(model_root.rotation.x, lean, 1.0 - exp(-delta * 8.0))
+        model_root.rotation.z = lerpf(model_root.rotation.z, clampf(-velocity.x * 0.03, -0.1, 0.1), 1.0 - exp(-delta * 6.0))
     else:
         velocity.y -= 18.0 * delta
         move_and_slide()
