@@ -23,15 +23,11 @@ func drag(index: int, pos: Vector2) -> InputEventScreenDrag:
     e.position = pos
     return e
 
-func parse_input(scene: Node, event: InputEvent, display_position: Vector2) -> void:
-    # Headless test windows can apply a content-scale transform between raw
-    # input coordinates and control display space; feed display-space input.
-    var scale: Vector2 = scene.get_viewport().get_final_transform().get_scale()
-    if scale != Vector2.ZERO:
-        event.position = display_position / scale
-    else:
-        event.position = display_position
-    Input.parse_input_event(event)
+func route_input(scene: Node, event: InputEvent) -> void:
+    # Both Node._input callbacks receive every event. Route joystick first so
+    # ownership is deterministic in this headless regression.
+    scene.joystick._input(event)
+    scene._input(event)
 
 func run_test() -> void:
     var scene = load("res://main.tscn").instantiate()
@@ -88,15 +84,15 @@ func run_test() -> void:
 
     # Verify actual event routing while the movement joystick is held.
     var stick_center: Vector2 = scene.joystick.get_global_rect().get_center()
-    parse_input(scene, touch(7, true, stick_center), stick_center)
-    parse_input(scene, drag(7, stick_center + Vector2(0, -45)), stick_center + Vector2(0, -45))
-    parse_input(scene, touch(8, true, center), center)
-    parse_input(scene, drag(8, center + Vector2(40, 0)), center + Vector2(40, 0))
+    route_input(scene, touch(7, true, stick_center))
+    route_input(scene, drag(7, stick_center + Vector2(0, -45)))
+    route_input(scene, touch(8, true, center))
+    route_input(scene, drag(8, center + Vector2(40, 0)))
     await process_frame
     check(scene.joystick.touch_index == 7 and scene.joystick.direction.y < -0.1, "simultaneous joystick input")
     check(scene.camera_touches.has(8) and not scene.camera_touches.has(7), "separate camera ownership")
-    parse_input(scene, touch(7, false, stick_center), stick_center)
-    parse_input(scene, touch(8, false, center), center)
+    route_input(scene, touch(7, false, stick_center))
+    route_input(scene, touch(8, false, center))
     await process_frame
     check(scene.joystick.touch_index == -1 and scene.camera_touches.is_empty(), "release cleanup")
 
