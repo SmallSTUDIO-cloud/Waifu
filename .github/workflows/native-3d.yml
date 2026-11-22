@@ -63,7 +63,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 -m pip install --quiet Pillow
-          for action in authored-review-front authored-review-side authored-review-rear authored-settings authored-combo authored-move authored-grip authored-impact authored-dodge; do
+          for action in candidate-formal candidate-dash authored-move authored-dodge authored-review-front authored-review-side authored-review-rear authored-settings authored-combo; do
             mkdir -p "/tmp/preview-$action"
             frames=30
             if [[ "$action" = *combo ]]; then frames=66; fi
@@ -71,6 +71,8 @@ jobs:
             preview_action="$action"
             extra=""
             if [[ "$action" = authored-* ]]; then preview_action="${action#authored-}"; extra="--preview-authored"; fi
+            if [[ "$action" = candidate-formal ]]; then preview_action="move"; extra="--candidate-formal-walk"; fi
+            if [[ "$action" = candidate-dash ]]; then preview_action="dodge"; extra="--candidate-sword-dash"; fi
             xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --write-movie "/tmp/preview-$action/frame.png" --fixed-fps 30 --quit-after "$frames" -- "--preview-$preview_action" $extra > "/tmp/preview-$action.log" 2>&1
             if grep -E 'SCRIPT ERROR|^ERROR:' "/tmp/preview-$action.log"; then exit 1; fi
             frame_number=12

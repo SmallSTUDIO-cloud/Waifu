@@ -36,6 +36,9 @@ var combo_source: Node3D
 var combo_rig: Skeleton3D
 var combo_animator: AnimationPlayer
 var combo_mapped: Array[Dictionary] = []
+# Evaluated via deterministic preview flags before enabling either by default.
+var candidate_formal_walk: bool = false
+var candidate_sword_dash: bool = false
 
 func setup(parent: Node3D, target: Skeleton3D) -> bool:
     target_rig = target
@@ -97,19 +100,19 @@ func update(delta: float, speed: float, attack_progress: float, dash_progress: f
     var use_combo = attack_progress >= 0.0 and dash_progress < 0.0 and combo_mapped.size() == BONE_MAP.size() and combo_animator != null
     if use_combo:
         use_combo = combo_animator.has_animation(COMBO_CLIPS[clampi(combo - 1, 0, 3)])
+    var use_authored_dash = dash_progress >= 0.0 and candidate_sword_dash and combo_animator != null and combo_mapped.size() == BONE_MAP.size() and combo_animator.has_animation("Sword_Dash")
     if dash_progress >= 0.0:
-        # A brief upright running lunge reads as an instant evade; the old
-        # full roll made the dress and limbs fold through each other.
-        desired = "Jog_Fwd"
+        desired = "Sword_Dash" if use_authored_dash else "Jog_Fwd"
     elif attack_progress >= 0.0:
         desired = COMBO_CLIPS[clampi(combo - 1, 0, 3)] if use_combo else "Sword_Attack"
-    elif speed > (0.07 if current == "Walk" else 0.16):
-        desired = "Walk"
-    var active_animator = combo_animator if use_combo else animator
-    var active_rig = combo_rig if use_combo else source_rig
-    var active_mapped = combo_mapped if use_combo else mapped
+    elif speed > (0.07 if current in ["Walk", "Walk_Formal"] else 0.16):
+        desired = "Walk_Formal" if candidate_formal_walk and animator.has_animation("Walk_Formal") else "Walk"
+    var use_second_rig = use_combo or use_authored_dash
+    var active_animator = combo_animator if use_second_rig else animator
+    var active_rig = combo_rig if use_second_rig else source_rig
+    var active_mapped = combo_mapped if use_second_rig else mapped
     if desired != current or (attack_progress >= 0.0 and current_combo != combo):
-        var sync_gait = not use_combo and current in ["Walk", "Jog_Fwd"] and desired in ["Walk", "Jog_Fwd"]
+        var sync_gait = not use_second_rig and current in ["Walk", "Walk_Formal", "Jog_Fwd"] and desired in ["Walk", "Walk_Formal", "Jog_Fwd"]
         var phase = animator.current_animation_position / maxf(animator.current_animation_length, 0.001) if sync_gait else 0.0
         current = desired
         current_combo = combo
@@ -119,7 +122,10 @@ func update(delta: float, speed: float, attack_progress: float, dash_progress: f
     if attack_progress >= 0.0 and dash_progress < 0.0:
         active_animator.seek(clampf(attack_progress, 0.0, 1.0) * active_animator.current_animation_length, true)
     elif dash_progress >= 0.0:
-        animator.seek((0.10 + 0.25 * clampf(dash_progress, 0.0, 1.0)) * animator.current_animation_length, true)
+        if use_authored_dash:
+            active_animator.seek((0.06 + 0.38 * clampf(dash_progress, 0.0, 1.0)) * active_animator.current_animation_length, true)
+        else:
+            animator.seek((0.10 + 0.25 * clampf(dash_progress, 0.0, 1.0)) * animator.current_animation_length, true)
     else:
         var rate = 1.0 if desired == "Sword_Idle" else clampf(speed * 1.10, 0.55, 1.1)
         animator.advance(delta * rate)

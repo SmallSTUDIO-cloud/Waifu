@@ -3,7 +3,7 @@ import { prune } from '@gltf-transform/functions';
 const [input, output] = process.argv.slice(2);
 if (!input || !output) throw new Error('Usage: node reduce-motion.mjs SOURCE.glb OUTPUT.glb');
 const io = new NodeIO(); const doc = await io.read(input);
-const wanted = new Set(['Sword_Light_A','Sword_Light_B','Sword_Heavy_B','Sword_Heavy_C']);
+const wanted = new Set(['Sword_Dash','Sword_Light_A','Sword_Light_B','Sword_Heavy_B','Sword_Heavy_C']);
 const bones = new Set(['pelvis','spine_01','spine_02','spine_03','neck_01','Head','clavicle_l','upperarm_l','lowerarm_l','hand_l','clavicle_r','upperarm_r','lowerarm_r','hand_r','thigh_l','calf_l','foot_l','ball_l','thigh_r','calf_r','foot_r','ball_r']);
 for (const a of doc.getRoot().listAnimations()) {
  if (!wanted.has(a.getName())) { a.dispose(); continue; }

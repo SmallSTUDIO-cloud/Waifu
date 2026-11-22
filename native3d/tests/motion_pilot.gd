@@ -80,5 +80,17 @@ func run_test() -> void:
         printerr("FAIL: dodge state")
         quit(1)
         return
-    print("PASS authored motion pilot: five clips, 22 mapped bones, state and animated pose")
+    driver.candidate_formal_walk = true
+    driver.update(0.1, 0.9, -1.0, -1.0, 1)
+    if driver.current != "Walk_Formal":
+        printerr("FAIL: formal walk candidate")
+        quit(1)
+        return
+    driver.candidate_sword_dash = true
+    driver.update(0.1, 0.0, -1.0, 0.4, 1)
+    if driver.current != "Sword_Dash":
+        printerr("FAIL: authored dash candidate")
+        quit(1)
+        return
+    print("PASS authored motion pilot: authored clips, 22 mapped bones, state and animated pose")
     quit(0)
