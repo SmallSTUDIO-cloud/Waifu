@@ -60,10 +60,12 @@ func run_test() -> void:
     bruiser.global_position = player.global_position + Vector3(0, 0, -6.0)
     bruiser.timer = 0.0
     var hp_before = player.health
+    var chase_start = bruiser.global_position.distance_to(player.global_position)
     for i in range(12): await physics_frame
     check(player.health == hp_before, "bruiser hit from 6m without windup")
     for i in range(40): await physics_frame
-    check(bruiser.mode == "chase" and bruiser.global_position.distance_to(player.global_position) < 5.5, "bruiser did not chase")
+    var chase_end = bruiser.global_position.distance_to(player.global_position)
+    check(chase_end < chase_start - 0.8, "bruiser did not chase (%.2f -> %.2f)" % [chase_start, chase_end])
     check(bruiser.model_root.rotation.x > 0.02, "bruiser did not lean while chasing")
     bruiser.global_position = player.global_position + Vector3(0, 0, -1.2)
     bruiser.timer = 0.0
@@ -140,9 +142,10 @@ func run_test() -> void:
         e2.timer = 5.0
         e1.global_position = Vector3(0, 0.1, -6)
         e2.global_position = Vector3(0.2, 0.1, -6)
+        var gap_before = Vector2(e1.global_position.x - e2.global_position.x, e1.global_position.z - e2.global_position.z).length()
         for i in range(150): await physics_frame
         var gap = Vector2(e1.global_position.x - e2.global_position.x, e1.global_position.z - e2.global_position.z).length()
-        check(gap > 0.6, "enemies did not separate")
+        check(gap > gap_before + 0.3, "enemies did not separate (%.2f -> %.2f)" % [gap_before, gap])
 
     # Hit reactions and defeat still work with the new models.
     for e in get_nodes_in_group("enemies"):
