@@ -101,13 +101,17 @@ func _constrain_skirt(joint: Dictionary, base: Quaternion, proposed: Quaternion)
     var angle = base.angle_to(proposed)
     var length = rig.get_bone_pose_position(joint.child).length()
     var fraction = 1.0
+    var base_middle = _skirt_point(joint, base, parent_pose, 0.55)
+    var base_tip = _skirt_point(joint, base, parent_pose, 1.0)
+    var basis_scale = parent_pose.basis.get_scale().abs()
+    var scale_bound = maxf(basis_scale.x, maxf(basis_scale.y, basis_scale.z))
     # Guard two points per chain segment. Conservative rotation sweeps catch a tip
     # passing through a capsule even when both end poses are outside.
     for segment in leg_segments:
         var a: Vector3 = segment[0]
         var b: Vector3 = segment[1]
         for along in [0.55, 1.0]:
-            var base_point = _skirt_point(joint, base, parent_pose, along)
+            var base_point = base_middle if along < 1.0 else base_tip
             var initial = _segment_distance(base_point, a, b)
             if initial < LEG_RADIUS: continue # Authored pose already intersects.
             var max_travel = 2.0 * length * along * sin(minf(angle, PI) * 0.5)
@@ -116,8 +120,6 @@ func _constrain_skirt(joint: Dictionary, base: Quaternion, proposed: Quaternion)
             # speed so each advance remains on the safe side even for a narrow
             # crossing between fixed samples. If the iteration cap is reached,
             # keep the last proven-safe pose rather than jumping through it.
-            var basis_scale = parent_pose.basis.get_scale().abs()
-            var scale_bound = maxf(basis_scale.x, maxf(basis_scale.y, basis_scale.z))
             var speed_bound = maxf(length * along * angle * scale_bound, 0.000001)
             var safe = 0.0
             for _i in range(20):
