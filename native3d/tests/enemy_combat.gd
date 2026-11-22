@@ -10,8 +10,8 @@ func check(condition: bool, message: String) -> void:
         failures += 1
         printerr("FAIL enemies: ", message)
 
-func enemy_by_kind(scene: Node, kind: String) -> Node:
-    for e in scene.get_nodes_in_group("enemies"):
+func enemy_by_kind(kind: String) -> Node:
+    for e in get_nodes_in_group("enemies"):
         if e.get("kind") == kind and not e.get("dead"):
             return e
     return null
@@ -50,9 +50,12 @@ func run_test() -> void:
 
     var player = scene.player
     player.invulnerable = 99.0
-    var bruiser = enemy_by_kind(scene, "large")
-    var drone = enemy_by_kind(scene, "small")
-    check(bruiser != null and drone != null, "robot kinds not found")
+    var bruiser = enemy_by_kind("large")
+    var drone = enemy_by_kind("small")
+    if bruiser == null or drone == null:
+        printerr("FAIL enemies: robot kinds not found")
+        quit(1)
+        return
 
     # Bruiser only strikes inside melee range after a windup.
     bruiser.global_position = player.global_position + Vector3(0, 0, -6.0)
@@ -121,7 +124,7 @@ func run_test() -> void:
     check(expired_seen and orphan.is_queued_for_deletion(), "bolt did not expire")
 
     # Enemies separate instead of stacking.
-    var e1 = enemy_by_kind(scene, "large")
+    var e1 = enemy_by_kind("large")
     var e2 = null
     for e in get_nodes_in_group("enemies"):
         if e != e1 and e.get("kind") == "large" and not e.get("dead"): e2 = e
