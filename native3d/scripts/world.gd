@@ -22,6 +22,20 @@ var review_camera: String = ""
 var review_attack: bool = false
 var review_dodge: bool = false
 var camera_kick: float = 0.0
+# Orbit angles are independent of the character's facing. Touches beginning
+# on controls remain owned by those controls for their entire lifetime.
+const CAMERA_DEFAULT_PITCH: float = 0.4408
+const CAMERA_DEFAULT_DISTANCE: float = 5.86
+const CAMERA_MIN_DISTANCE: float = 2.5
+const CAMERA_MAX_DISTANCE: float = 11.0
+const CAMERA_MIN_PITCH: float = 0.14
+const CAMERA_MAX_PITCH: float = 1.13
+var camera_yaw: float = 0.0
+var camera_pitch: float = CAMERA_DEFAULT_PITCH
+var camera_distance: float = CAMERA_DEFAULT_DISTANCE
+var camera_touches: Dictionary = {}
+var camera_pinch_distance: float = 0.0
+var camera_exclusions: Array[Control] = []
 var profile_enabled: bool = false
 var profile_time: float = 0.0
 var profile_last_us: int = 0
@@ -202,7 +216,7 @@ func _ui() -> void:
     health_label = _make_label("HP  100", 20)
     health_label.position = Vector2(30, 55)
     hud.add_child(health_label)
-    tip_label = _make_label("Move  •  Attack  •  Dodge red warnings", 17, Color(0.8, 0.86, 0.9))
+    tip_label = _make_label("Drag to orbit  •  Pinch to zoom", 17, Color(0.8, 0.86, 0.9))
     tip_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
     tip_label.offset_left = -170
     tip_label.offset_top = 28
@@ -241,6 +255,7 @@ func _ui() -> void:
     pause_button.offset_bottom = 80
     hud.add_child(pause_button)
     pause_button.pressed.connect(_pause)
+    camera_exclusions = [joystick, attack, dodge, pause_button]
     hud.visible = false
     menu = Control.new()
     menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -330,6 +345,11 @@ func start_game() -> void:
     player.speed_ratio = 0.0
     player.turn_lean = 0.0
     camera_kick = 0.0
+    camera_yaw = 0.0
+    camera_pitch = CAMERA_DEFAULT_PITCH
+    camera_distance = CAMERA_DEFAULT_DISTANCE
+    _clear_camera_touches()
+    tip_label.visible = true
     player.enabled = true
     player.control = Vector2.ZERO
     timer = 0.0
@@ -379,7 +399,15 @@ func _physics_process(delta: float) -> void:
     if Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT): keyboard.x += 1.0
     if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP): keyboard.y -= 1.0
     if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): keyboard.y += 1.0
-    player.control = (joystick.direction + keyboard).limit_length(1.0)
+    var input_dir = (joystick.direction + keyboard).limit_length(1.0)
+    # Movement and dodge remain screen-relative after the camera orbits.
+    if preview_mode == "":
+        var back = camera.global_position - player.global_position
+        var view_yaw = atan2(back.x, back.z)
+        var world_input = Vector3(input_dir.x, 0, input_dir.y).rotated(Vector3.UP, view_yaw)
+        player.control = Vector2(world_input.x, world_input.z)
+    else:
+        player.control = input_dir
     if preview_mode == "move": player.control = Vector2(0.0, -1.0)
     if preview_mode == "review":
         player.control = Vector2(0.0, -0.65) if timer < 0.9 else Vector2.ZERO
@@ -413,13 +441,62 @@ func _update_camera(delta: float) -> void:
         camera.global_position = focus + Vector3(0.60, 0.18, 0.80)
         camera.look_at(focus, Vector3.UP)
         return
-    var camera_offset = Vector3(0, 3.5, 5.3)
-    if preview_mode != "": camera_offset = Vector3(0, 2.0, 2.8)
-    var desired = player.global_position + camera_offset
+    var focus = player.global_position + Vector3(0, 1.0, 0)
+    var desired: Vector3
+    if preview_mode != "":
+        desired = player.global_position + Vector3(0, 2.0, 2.8)
+        focus.z -= 0.25
+    else:
+        var horizontal = cos(camera_pitch) * camera_distance
+        desired = focus + Vector3(sin(camera_yaw) * horizontal, sin(camera_pitch) * camera_distance, cos(camera_yaw) * horizontal)
     camera_kick = maxf(0.0, camera_kick - delta * 4.0)
     var shake = Vector3(sin(timer * 87.0), cos(timer * 63.0), 0) * camera_kick * 0.035
-    camera.global_position = camera.global_position.lerp(desired, minf(1.0, delta * 5.0)) + shake
-    camera.look_at(player.global_position + Vector3(0, 1.0, -0.25 if preview_mode != "" else -1.0))
+    camera.global_position = camera.global_position.lerp(desired, 1.0 - exp(-delta * 7.0))
+    camera.look_at(focus + shake, Vector3.UP)
+
+
+func _clear_camera_touches() -> void:
+    camera_touches.clear()
+    camera_pinch_distance = 0.0
+
+func _notification(what: int) -> void:
+    if what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+        _clear_camera_touches()
+        if is_instance_valid(joystick): joystick._reset()
+
+func _input(event: InputEvent) -> void:
+    if not playing or preview_mode != "":
+        return
+    if event is InputEventScreenTouch:
+        if event.pressed:
+            if camera_touches.has(event.index) or camera_touches.size() >= 2:
+                return
+            for control in camera_exclusions:
+                if control.is_visible_in_tree() and control.get_global_rect().has_point(event.position):
+                    return
+            camera_touches[event.index] = event.position
+            if camera_touches.size() == 2:
+                var points = camera_touches.values()
+                camera_pinch_distance = points[0].distance_to(points[1])
+        elif camera_touches.has(event.index):
+            camera_touches.erase(event.index)
+            camera_pinch_distance = 0.0
+    elif event is InputEventScreenDrag and camera_touches.has(event.index):
+        var previous: Vector2 = camera_touches[event.index]
+        camera_touches[event.index] = event.position
+        if camera_touches.size() == 1:
+            # Angles track screen fractions rather than raw device pixels.
+            var viewport_size = get_viewport().get_visible_rect().size
+            var delta = event.position - previous
+            camera_yaw = wrapf(camera_yaw - delta.x / maxf(viewport_size.x, 1.0) * TAU, -PI, PI)
+            camera_pitch = clampf(camera_pitch + delta.y / maxf(viewport_size.y, 1.0) * PI, CAMERA_MIN_PITCH, CAMERA_MAX_PITCH)
+        else:
+            var points = camera_touches.values()
+            var distance: float = points[0].distance_to(points[1])
+            # Rebaseline coincident fingers instead of dividing by zero.
+            if distance >= 8.0 and camera_pinch_distance >= 8.0:
+                camera_distance = clampf(camera_distance * camera_pinch_distance / distance, CAMERA_MIN_DISTANCE, CAMERA_MAX_DISTANCE)
+            camera_pinch_distance = distance
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and not event.echo:
@@ -478,6 +555,8 @@ func _on_defeated() -> void:
     _refresh_count()
     if remaining <= 0:
         playing = false
+        _clear_camera_touches()
+        joystick._reset()
         player.enabled = false
         hud.visible = false
         _show_menu("ROOFTOP SECURE", "COMBAT TEST COMPLETE  /  %d SECONDS" % int(timer), "RETRY")
@@ -486,6 +565,8 @@ func _on_health(value: int) -> void:
     health_label.text = "HP  %d" % value
     if value <= 0 and playing:
         playing = false
+        _clear_camera_touches()
+        joystick._reset()
         player.enabled = false
         hud.visible = false
         for enemy in get_tree().get_nodes_in_group("enemies"): enemy.enabled = false
@@ -500,6 +581,7 @@ func _pause() -> void:
     player.enabled = false
     player.control = Vector2.ZERO
     joystick._reset()
+    _clear_camera_touches()
     hud.visible = false
     for enemy in get_tree().get_nodes_in_group("enemies"): enemy.enabled = false
     _show_menu("PAUSED", "RETURN TO THE ROOFTOP WHEN READY", "RESUME")

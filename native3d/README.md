@@ -24,3 +24,7 @@ Secondary hair, skirt and sleeves use bounded, damped angular springs; anatomy b
 The reference-inspired VFX pass uses violet-white tapered crescents, petal-like shards, a spinning third hit and a heavier fourth-hit cleave; it is an approximation, not a pixel-identical recreation of the reference. Dodge reuses one fading dark skinned afterimage. The walk uses a CC0 formal cycle, while the dodge uses an authored sword dash rather than a roll. Phone profiling and animator cleanup remain necessary.
 
 The deploy and pause menus offer persistent physics (off/reduced/full) and VFX (reduced/full) controls. See `SECONDARY_MOTION.md` for collision limits and `ANDROID_PROFILING.md` for the physical-device protocol. The avatar has no independently rigged ribbon or bow and no anatomy bones are simulated.
+
+### Touch camera
+
+During combat, drag an open part of the screen with one finger to orbit around the character. Pinch with two fingers to zoom in or out. The movement joystick, attack, dodge and pause buttons keep their own touches; movement and dodge direction are relative to the current view. Camera angle and zoom reset when starting a new encounter and remain unchanged when pausing and resuming. Touch behavior still needs physical-device testing.
