@@ -18,6 +18,9 @@ var playing: bool = false
 var remaining: int = 0
 var preview_mode: String = ""
 var preview_action_started: bool = false
+var review_camera: String = ""
+var review_attack: bool = false
+var review_dodge: bool = false
 var camera_kick: float = 0.0
 var profile_enabled: bool = false
 var profile_time: float = 0.0
@@ -54,6 +57,19 @@ func _ready() -> void:
     var args = OS.get_cmdline_user_args()
     if "--smoke-play" in args or "--preview-move" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args or "--preview-grip" in args:
         start_game()
+    for side in ["front", "side", "rear"]:
+        if "--preview-review-" + side in args:
+            review_camera = side
+            preview_mode = "review"
+            start_game()
+            hud.visible = false
+            player.invulnerable = 99.0
+            for enemy in get_tree().get_nodes_in_group("enemies"):
+                enemy.enabled = false
+                enemy.visible = false
+    if "--preview-settings" in args:
+        start_game()
+        call_deferred("_pause")
     if "--preview-move" in args: preview_mode = "move"
     if "--preview-attack" in args: preview_mode = "attack"
     if "--preview-dodge" in args: preview_mode = "dodge"
@@ -342,6 +358,14 @@ func _physics_process(delta: float) -> void:
     if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): keyboard.y += 1.0
     player.control = (joystick.direction + keyboard).limit_length(1.0)
     if preview_mode == "move": player.control = Vector2(0.0, -1.0)
+    if preview_mode == "review":
+        player.control = Vector2(0.0, -0.65) if timer < 0.9 else Vector2.ZERO
+        if timer > 1.1 and not review_attack:
+            _attack()
+            review_attack = true
+        if timer > 2.0 and not review_dodge:
+            _dodge()
+            review_dodge = true
     if not preview_action_started and timer > 0.08:
         if preview_mode == "attack" or preview_mode == "combo" or preview_mode == "impact": _attack()
         if preview_mode == "dodge": _dodge()
@@ -353,6 +377,14 @@ func _physics_process(delta: float) -> void:
     if timer > 8.0: tip_label.visible = false
 
 func _update_camera(delta: float) -> void:
+    if preview_mode == "review":
+        var center = player.global_position + Vector3(0, 0.95, 0)
+        var offset = Vector3(0, 0.35, 1.9)
+        if review_camera == "front": offset = Vector3(0, 0.35, -1.9)
+        if review_camera == "side": offset = Vector3(1.9, 0.35, 0)
+        camera.global_position = center + offset
+        camera.look_at(center, Vector3.UP)
+        return
     if preview_mode == "grip" and is_instance_valid(player.sword_grip):
         var focus = player.sword_grip.global_position
         camera.global_position = focus + Vector3(0.60, 0.18, 0.80)

@@ -115,6 +115,11 @@ func run_test() -> void:
     if probe._segment_distance(tip, a, b) < probe.LEG_RADIUS - 0.001 or absf(constrained.dot(desired)) > 0.99999:
         fail("skirt tip was not constrained against leg proxy")
         return
+    # Sweep goes through the capsule even though its end is outside.
+    var swept = probe._constrain_skirt(cloth, base, Quaternion(Vector3.FORWARD, PI / 2.0))
+    if base.angle_to(swept) > PI / 4.0:
+        fail("swept crossing missed capsule")
+        return
     rig.queue_free()
     print("PASS secondary categories, bounds, settle, animation ownership, capsule math, quality modes")
     quit(0)

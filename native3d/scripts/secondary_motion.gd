@@ -7,9 +7,11 @@ const MAX_ACCEL: float = 24.0
 const LEG_RADIUS: float = 0.065
 # 0 = off, 1 = root chains, 2 = all available secondary joints.
 var quality: int = 2
+var quality_fade_remaining: float = 0.0
 var rig: Skeleton3D
 var joints: Array[Dictionary] = []
 var leg_pairs: Array = []
+var leg_segments: Array = []
 
 func setup(skeleton: Skeleton3D) -> void:
     rig = skeleton
@@ -58,6 +60,7 @@ func set_quality(level: int) -> void:
     var next = clampi(level, 0, 2)
     if next == quality: return
     quality = next
+    quality_fade_remaining = 0.25
 
 func reset() -> void:
     if not rig: return
@@ -80,36 +83,57 @@ func _segment_distance(point: Vector3, a: Vector3, b: Vector3) -> float:
     var t = clampf((point - a).dot(ab) / maxf(ab.length_squared(), 0.000001), 0.0, 1.0)
     return point.distance_to(a + ab * t)
 
+func _cache_leg_segments() -> void:
+    leg_segments.clear()
+    for pair in leg_pairs:
+        leg_segments.append([rig.get_bone_global_pose(pair[0]).origin, rig.get_bone_global_pose(pair[1]).origin])
+
+func _skirt_point(joint: Dictionary, pose: Quaternion, parent_pose: Transform3D, fraction: float) -> Vector3:
+    return parent_pose * (rig.get_bone_pose_position(joint.bone) + Basis(pose) * rig.get_bone_pose_position(joint.child) * fraction)
+
 func _tip_position(joint: Dictionary, pose: Quaternion, parent_pose: Transform3D) -> Vector3:
-    var child: int = joint.child
-    return parent_pose * (rig.get_bone_pose_position(joint.bone) + Basis(pose) * rig.get_bone_pose_position(child))
+    return _skirt_point(joint, pose, parent_pose, 1.0)
 
 func _constrain_skirt(joint: Dictionary, base: Quaternion, proposed: Quaternion) -> Quaternion:
     if joint.child < 0 or leg_pairs.is_empty(): return proposed
+    if leg_segments.is_empty(): _cache_leg_segments()
     var parent_pose = rig.get_bone_global_pose(joint.parent)
-    var base_tip = _tip_position(joint, base, parent_pose)
-    var proposed_tip = _tip_position(joint, proposed, parent_pose)
+    var angle = base.angle_to(proposed)
+    var length = rig.get_bone_pose_position(joint.child).length()
     var fraction = 1.0
-    for pair in leg_pairs:
-        var a: Vector3 = rig.get_bone_global_pose(pair[0]).origin
-        var b: Vector3 = rig.get_bone_global_pose(pair[1]).origin
-        # If the authored pose already penetrates the proxy, do not force the
-        # garment away from its design. This cannot fix underlying skinning.
-        if _segment_distance(base_tip, a, b) < LEG_RADIUS: continue
-        if _segment_distance(proposed_tip, a, b) >= LEG_RADIUS: continue
-        var lo = 0.0
-        var hi = fraction
-        for _i in range(6):
-            var mid = (lo + hi) * 0.5
-            var tip = _tip_position(joint, base.slerp(proposed, mid), parent_pose)
-            if _segment_distance(tip, a, b) >= LEG_RADIUS: lo = mid
-            else: hi = mid
-        fraction = minf(fraction, lo)
+    # Guard two points per chain segment. Rotation sweep samples catch a tip
+    # passing through a capsule even when both end poses are outside.
+    for segment in leg_segments:
+        var a: Vector3 = segment[0]
+        var b: Vector3 = segment[1]
+        for along in [0.55, 1.0]:
+            var base_point = _skirt_point(joint, base, parent_pose, along)
+            var initial = _segment_distance(base_point, a, b)
+            if initial < LEG_RADIUS: continue # Authored pose already intersects.
+            var max_travel = 2.0 * length * along * sin(minf(angle, PI) * 0.5)
+            if initial > LEG_RADIUS + max_travel: continue
+            var last_safe = 0.0
+            for step in range(1, 5):
+                var probe = fraction * float(step) / 4.0
+                var point = _skirt_point(joint, base.slerp(proposed, probe), parent_pose, along)
+                if _segment_distance(point, a, b) < LEG_RADIUS:
+                    var lo = last_safe
+                    var hi = probe
+                    for _i in range(6):
+                        var mid = (lo + hi) * 0.5
+                        var midpoint = _skirt_point(joint, base.slerp(proposed, mid), parent_pose, along)
+                        if _segment_distance(midpoint, a, b) >= LEG_RADIUS: lo = mid
+                        else: hi = mid
+                    fraction = minf(fraction, lo)
+                    break
+                last_safe = probe
     return base.slerp(proposed, fraction)
 
 func update(delta: float) -> void:
     if delta <= 0.0 or not rig: return
     var sample_dt = clampf(delta, 0.001, MAX_DT)
+    if quality > 0 or quality_fade_remaining > 0.0: _cache_leg_segments()
+    quality_fade_remaining = maxf(0.0, quality_fade_remaining - delta)
     for joint in joints:
         var target_weight = 1.0 if quality == 2 or (quality == 1 and joint.root) else 0.0
         joint.weight = move_toward(float(joint.weight), target_weight, delta * 4.0)
