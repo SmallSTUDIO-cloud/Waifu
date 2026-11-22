@@ -50,6 +50,8 @@ func run_test() -> void:
         if absf(joint.x.angle) > 0.000001 or absf(joint.z.angle) > 0.000001:
             fail("secondary reset")
             return
+    # BoneAttachment3D updates on the next scene frame after moving the rig.
+    await process_frame
     var hand = player.skeleton.find_bone("J_Bip_R_Hand")
     var middle = player.skeleton.find_bone("J_Bip_R_Middle1")
     var hand_pos = (player.skeleton.global_transform * player.skeleton.get_bone_global_pose(hand)).origin
