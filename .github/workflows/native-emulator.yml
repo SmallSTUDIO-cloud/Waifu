@@ -51,6 +51,7 @@ jobs:
         run: |
           mkdir -p "$HOME/.android" "$HOME/.config/godot"
           keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
+          keytool -genkeypair -keystore "$HOME/.android/release.keystore" -storepass android -keypass android -alias releasetest -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Scarlet Veil Test,O=SmallStudio,C=BD'
           cat > "$HOME/.config/godot/editor_settings-4.tres" <<SETTINGS
           [gd_resource type="EditorSettings" format=3]
           [resource]
@@ -59,6 +60,9 @@ jobs:
           export/android/debug_keystore = "$HOME/.android/debug.keystore"
           export/android/debug_keystore_user = "androiddebugkey"
           export/android/debug_keystore_pass = "android"
+          export/android/release_keystore = "$HOME/.android/release.keystore"
+          export/android/release_keystore_user = "releasetest"
+          export/android/release_keystore_pass = "android"
           SETTINGS
       - name: Import and build private debug APK
         run: |
@@ -81,6 +85,8 @@ jobs:
           test "$size" -gt 20000000
           unzip -l "$RUNNER_TEMP/secondary-release.apk" | grep -q 'AndroidManifest.xml'
           unzip -l "$RUNNER_TEMP/secondary-release.apk" | grep -q 'resources.arsc'
+          unzip -l "$RUNNER_TEMP/secondary-release.apk" | grep -q 'classes.dex'
+          apksigner verify --print-certs "$RUNNER_TEMP/secondary-release.apk" 2>/dev/null | head -3 || true
           echo "::warning title=Release APK build::$size bytes, manifest and resources verified (not published)"
           ls -lh "$RUNNER_TEMP"/*.apk
       - name: Launch APK on Android emulator
