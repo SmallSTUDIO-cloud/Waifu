@@ -80,29 +80,38 @@ jobs:
             adb shell input keyevent 82
             echo '::warning title=Emulator phase::Installing APK'
             adb install -r "$RUNNER_TEMP/secondary-debug.apk"
-            echo '::warning title=Emulator phase::Starting game'
-            adb logcat -c
-            adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.smallstudio.scarletveil3d
-            sleep 50
-            echo '::warning title=Emulator phase::Checking game process'
-            adb shell pidof com.smallstudio.scarletveil3d
+            : > /tmp/android-live.log
+            for level in 2 0 1; do
+              echo "::warning title=Emulator tier::Testing physics quality $level"
+              adb shell am force-stop com.smallstudio.scarletveil3d
+              adb shell pm clear com.smallstudio.scarletveil3d > /dev/null
+              adb logcat -c
+              adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.smallstudio.scarletveil3d
+              if [ "$level" = 2 ]; then sleep 50; else sleep 20; fi
+              adb shell pidof com.smallstudio.scarletveil3d
+              adb exec-out screencap -p > "/tmp/android-menu-$level.png"
+              # Default FULL cycles to OFF then REDUCED.
+              if [ "$level" = 0 ] || [ "$level" = 1 ]; then adb shell input tap 240 190; sleep 1; fi
+              if [ "$level" = 1 ]; then adb shell input tap 240 190; sleep 1; fi
+              adb shell input tap 320 155
+              sleep 2
+              adb shell dumpsys gfxinfo com.smallstudio.scarletveil3d reset > /dev/null
+              # Emulator is 640x320 in landscape; touch positions are physical pixels.
+              adb shell input swipe 35 280 35 210 2500
+              adb shell input tap 590 280
+              adb shell input tap 530 280
+              sleep 9
+              adb shell dumpsys gfxinfo com.smallstudio.scarletveil3d framestats > /tmp/android-framestats.txt
+              adb shell pidof com.smallstudio.scarletveil3d
+              adb exec-out screencap -p > /tmp/android-frame.png
+              adb logcat -d -v brief > "/tmp/android-tier-$level.log"
+              cat "/tmp/android-tier-$level.log" >> /tmp/android-live.log
+              if ! grep "SECONDARY_PROFILE.*quality=$level " "/tmp/android-tier-$level.log"; then
+                echo "::error::Missing profile or incorrect quality selection: $level"
+                exit 1
+              fi
+            done
             adb shell dumpsys activity activities > /tmp/android-activity.txt
-            adb logcat -d -v brief > /tmp/android-live.log
-            grep -i "com.smallstudio.scarletveil3d" /tmp/android-activity.txt || true
-            adb exec-out screencap -p > /tmp/android-menu.png
-            adb shell input tap 320 155
-            sleep 2
-            adb shell dumpsys gfxinfo com.smallstudio.scarletveil3d reset > /dev/null
-            # Emulator is 640x320 in landscape; touch positions are physical pixels.
-            adb shell input swipe 35 280 35 210 2500
-            adb shell input tap 590 280
-            adb shell input tap 530 280
-            sleep 8
-            adb shell dumpsys gfxinfo com.smallstudio.scarletveil3d framestats > /tmp/android-framestats.txt
-            adb shell pidof com.smallstudio.scarletveil3d
-            adb exec-out screencap -p > /tmp/android-frame.png
-            adb logcat -d -v brief > /tmp/android-live.log
-            if ! grep -q SECONDARY_PROFILE /tmp/android-live.log; then echo "::warning::No Godot frame timing samples captured"; fi
             adb logcat -d -s AndroidRuntime:E > /tmp/android-errors.log
             if grep -q 'FATAL EXCEPTION' /tmp/android-errors.log; then cat /tmp/android-errors.log; exit 1; fi
       - name: Summarize Android emulator frame data
