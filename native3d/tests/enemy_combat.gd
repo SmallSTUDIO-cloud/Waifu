@@ -144,6 +144,11 @@ func run_test() -> void:
         if orphan.is_queued_for_deletion(): break
     print("PHASE expiry-end")
     check(expired_seen and orphan.is_queued_for_deletion(), "bolt did not expire")
+    print("PHASE idle-start")
+    for i in range(300):
+        await physics_frame
+        if i % 25 == 0: print("PHASE idle tick=", i, " hp=", player.health, " enemies=", get_nodes_in_group("enemies").size(), " effects=", get_nodes_in_group("combat_effects").size())
+    print("PHASE idle-end")
 
     print("PHASE separation-start")
     # Enemies separate instead of stacking.
