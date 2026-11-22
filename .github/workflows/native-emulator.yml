@@ -74,21 +74,28 @@ jobs:
           sed -i 's/profile_shadow_enabled=true/profile_shadow_enabled=false/' native3d/project.godot
           godot --headless --path native3d --export-debug Android "$RUNNER_TEMP/secondary-no-shadow.apk" 2>&1 | tee /tmp/android-export-no-shadow.log
           test -s "$RUNNER_TEMP/secondary-no-shadow.apk"
-      - name: Verify release APK export (never published)
+      - name: Build signed release APK for prerelease
         run: |
           set -o pipefail
           sed -i 's/profile_debug=true/profile_debug=false/' native3d/project.godot
-          godot --headless --path native3d --export-release Android "$RUNNER_TEMP/secondary-release.apk" 2>&1 | tee /tmp/android-export-release.log
-          test -s "$RUNNER_TEMP/secondary-release.apk"
-          size=$(stat -c %s "$RUNNER_TEMP/secondary-release.apk")
+          sed -i 's/profile_shadow_enabled=false/profile_shadow_enabled=true/' native3d/project.godot
+          godot --headless --path native3d --export-release Android "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" 2>&1 | tee /tmp/android-export-release.log
+          test -s "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk"
+          size=$(stat -c %s "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk")
           echo "release_apk_bytes=$size" >> "$GITHUB_ENV"
           test "$size" -gt 20000000
-          unzip -l "$RUNNER_TEMP/secondary-release.apk" | grep -q 'AndroidManifest.xml'
-          unzip -l "$RUNNER_TEMP/secondary-release.apk" | grep -q 'resources.arsc'
-          unzip -l "$RUNNER_TEMP/secondary-release.apk" | grep -q 'classes.dex'
-          apksigner verify --print-certs "$RUNNER_TEMP/secondary-release.apk" 2>/dev/null | head -3 || true
-          echo "::warning title=Release APK build::$size bytes, manifest and resources verified (not published)"
+          unzip -l "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" | grep -q 'AndroidManifest.xml'
+          unzip -l "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" | grep -q 'resources.arsc'
+          unzip -l "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" | grep -q 'classes.dex'
+          apksigner verify --print-certs "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" 2>/dev/null | head -3 || true
+          echo "::warning title=Release APK build::$size bytes, manifest and resources verified"
           ls -lh "$RUNNER_TEMP"/*.apk
+      - name: Upload prerelease APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-veil-3d-prerelease-apk
+          path: ${{ runner.temp }}/scarlet-veil-3d-prerelease.apk
+          retention-days: 14
       - name: Launch APK on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
