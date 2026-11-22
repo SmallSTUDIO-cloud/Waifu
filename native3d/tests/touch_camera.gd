@@ -83,6 +83,7 @@ func run_test() -> void:
     Input.parse_input_event(touch(8, true, center))
     Input.parse_input_event(drag(8, center + Vector2(40, 0)))
     await process_frame
+    print("INPUT DIAG viewport=", root.get_visible_rect(), " joystick=", scene.joystick.get_global_rect(), " stick=", scene.joystick.touch_index, " direction=", scene.joystick.direction, " camera=", scene.camera_touches)
     check(scene.joystick.touch_index == 7 and scene.joystick.direction.y < -0.1, "simultaneous joystick input")
     check(scene.camera_touches.has(8) and not scene.camera_touches.has(7), "separate camera ownership")
     Input.parse_input_event(touch(7, false, stick_center))
