@@ -63,7 +63,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 -m pip install --quiet Pillow
-          for action in legacy-move legacy-dodge authored-move authored-dodge authored-review-front authored-review-side authored-review-rear authored-settings authored-combo; do
+          for action in authored-review-front authored-review-side authored-review-rear authored-combo authored-dodge authored-move legacy-move legacy-dodge authored-settings; do
             mkdir -p "/tmp/preview-$action"
             frames=30
             if [[ "$action" = *combo ]]; then frames=66; fi

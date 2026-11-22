@@ -78,6 +78,18 @@ func run_test() -> void:
             printerr("FAIL: distinct combo stage ", stage)
             quit(1)
             return
+    # The second source uses different names; verify anatomical directions,
+    # not merely that all names existed.
+    for i in range(60): driver.update(1.0 / 60.0, 0.0, 0.4, -1.0, 2)
+    for pair in [["upperarm_r", "lowerarm_r", "J_Bip_R_UpperArm", "J_Bip_R_LowerArm"], ["thigh_r", "calf_r", "J_Bip_R_UpperLeg", "J_Bip_R_LowerLeg"]]:
+        var a = driver.combo_rig.find_bone(pair[0]); var b = driver.combo_rig.find_bone(pair[1])
+        var c = scene.player.skeleton.find_bone(pair[2]); var d = scene.player.skeleton.find_bone(pair[3])
+        var source_dir = (driver.combo_rig.get_bone_global_pose(b).origin - driver.combo_rig.get_bone_global_pose(a).origin).normalized()
+        var target_dir = (scene.player.skeleton.get_bone_global_pose(d).origin - scene.player.skeleton.get_bone_global_pose(c).origin).normalized()
+        if (facing_flip * source_dir).dot(target_dir) < 0.75:
+            printerr("FAIL: combo anatomical retarget direction: ", pair)
+            quit(1)
+            return
     driver.update(0.1, 0.0, -1.0, 0.4, 1)
     if driver.current != "Jog_Fwd":
         printerr("FAIL: dodge state")

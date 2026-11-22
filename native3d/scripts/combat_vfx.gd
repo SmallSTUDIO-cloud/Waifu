@@ -25,7 +25,10 @@ func setup(effect_kind: String, stage: int = 1, quality: int = 1) -> void:
         var radius = 1.55 + 0.12 * (stage - 1)
         var arc = 138.0 if stage == 3 else (105.0 if stage == 4 else 92.0)
         if effect_quality == 1:
-            _ring_band(mesh, radius - 0.78, radius - 0.52, -arc, arc, Color(0.42, 0.12, 1, 0), Color(0.58, 0.22, 1, 0.22), true)
+            # Feather both sides of the hot edge without a screen-wide bloom
+            # pass, so compatibility rendering retains a controllable budget.
+            _ring_band(mesh, radius - 0.78, radius - 0.52, -arc, arc, Color(0.42, 0.12, 1, 0), Color(0.58, 0.22, 1, 0.26), true)
+            _ring_band(mesh, radius, radius + 0.30, -arc, arc, Color(0.78, 0.35, 1, 0.34), Color(0.45, 0.12, 1, 0), true)
         _ring_band(mesh, radius - 0.53, radius - 0.23, -arc, arc, Color(0.48, 0.12, 1, 0), Color(0.69, 0.32, 1, 0.42), true)
         _ring_band(mesh, radius - 0.23, radius - 0.09, -arc, arc, Color(0.68, 0.25, 1, 0.66), Color(0.93, 0.76, 1, 1.0), true)
         _ring_band(mesh, radius - 0.09, radius, -arc, arc, Color(1, 0.95, 1, 1.0), Color(0.65, 0.25, 1, 0), true)
@@ -79,7 +82,7 @@ func _point(angle: float, radius: float) -> Vector3:
     return Vector3(sin(angle) * radius, 0, -cos(angle) * radius)
 
 func _ring_band(mesh: ImmediateMesh, inner: float, outer: float, start: float, end: float, inner_color: Color, outer_color: Color, taper: bool) -> void:
-    const SEGMENTS = 32
+    const SEGMENTS = 48
     for i in range(SEGMENTS):
         var p0 = float(i) / SEGMENTS
         var p1 = float(i + 1) / SEGMENTS
