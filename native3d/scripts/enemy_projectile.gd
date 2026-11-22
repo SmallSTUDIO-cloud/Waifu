@@ -69,8 +69,5 @@ func _physics_process(delta: float) -> void:
             return
 
 func _finish() -> void:
-    print("BOLT finish at ", global_position, " life=", life)
     expired.emit(global_position)
-    print("BOLT emitted")
     call_deferred("queue_free")
-    print("BOLT deferred-free")
