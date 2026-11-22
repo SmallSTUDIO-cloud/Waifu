@@ -5,6 +5,11 @@ var failures: int = 0
 func _initialize() -> void:
     call_deferred("run_test")
 
+var expired_seen: bool = false
+
+func _on_orphan_expired(_position: Vector3) -> void:
+    expired_seen = true
+
 func check(condition: bool, message: String) -> void:
     if not condition:
         failures += 1
@@ -131,8 +136,8 @@ func run_test() -> void:
     scene.add_child(orphan)
     # Start far enough away that the bolt must expire by lifetime, not impact.
     orphan.setup(player.global_position + Vector3(0, 1, 30), Vector3(0, 0, -1), player)
-    var expired_seen = false
-    orphan.expired.connect(func(_p): expired_seen = true)
+    expired_seen = false
+    orphan.expired.connect(_on_orphan_expired)
     for i in range(200):
         await physics_frame
         if i % 20 == 0: print("PHASE expiry tick=", i, " orphan_valid=", is_instance_valid(orphan), " pos=", orphan.global_position if is_instance_valid(orphan) else Vector3.ZERO, " projectiles=", get_nodes_in_group("enemy_projectiles").size())
