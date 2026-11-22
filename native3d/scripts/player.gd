@@ -76,7 +76,10 @@ func _ready() -> void:
         secondary_motion.setup(skeleton)
         secondary_motion.set_quality(int(ProjectSettings.get_setting("secondary_motion/quality", 2)))
         _attach_sword()
-        _create_dodge_shadow()
+        # Profiling can disable the entire shadow instance, allowing a device
+        # comparison of both memory and rendering costs. Normal builds keep it.
+        var shadow_enabled = not OS.is_debug_build() or bool(ProjectSettings.get_setting("secondary_motion/profile_shadow_enabled", true))
+        if shadow_enabled: _create_dodge_shadow()
         sword_trail = SWORD_TRAIL.new()
         add_child(sword_trail)
         var candidate = AUTHORED_MOTION.new()

@@ -57,6 +57,13 @@ func run_test() -> void:
     scene.start_game()
     var hp = scene.player.health
     scene._pause()
+    scene.profile_enabled = true
+    scene.profile_last_us = 12345
+    scene._process(1.0)
+    if scene.profile_last_us != 0:
+        fail("pause polluted profiling frame times")
+        return
+    scene.profile_enabled = false
     if not scene.menu_action.text == "RESUME" or not scene.physics_button.visible:
         fail("pause quality controls")
         return
@@ -64,5 +71,15 @@ func run_test() -> void:
     if not scene.playing or scene.player.health != hp:
         fail("resume reset encounter")
         return
-    print("PASS settings persistence, quality controls, reduced VFX, pause/resume")
+    ProjectSettings.set_setting("secondary_motion/profile_shadow_enabled", false)
+    var isolated_player = load("res://scripts/player.gd").new()
+    root.add_child(isolated_player)
+    await process_frame
+    isolated_player.enabled = true
+    if OS.is_debug_build() and (isolated_player.shadow_root != null or not isolated_player.dodge()):
+        fail("shadow-off profiling build cannot dodge without allocating shadow")
+        return
+    isolated_player.queue_free()
+    ProjectSettings.set_setting("secondary_motion/profile_shadow_enabled", true)
+    print("PASS settings persistence, quality controls, reduced VFX, pause/resume and shadow profiling")
     quit(0)

@@ -301,6 +301,17 @@ func _cycle_effects() -> void:
     _refresh_quality_labels()
 
 func start_game() -> void:
+    if profile_enabled:
+        profile_time = 0.0
+        profile_last_us = 0
+        profile_frames.clear()
+        profile_reported = false
+        player.profile_secondary = true
+        player.profile_secondary_us = 0
+        player.profile_secondary_max_us = 0
+        player.profile_secondary_steps = 0
+        player.profile_shadow_us = 0
+        player.profile_shadow_count = 0
     for node in get_tree().get_nodes_in_group("enemies"):
         node.queue_free()
     player.position = Vector3(0, 0.1, 3)
@@ -339,7 +350,10 @@ func start_game() -> void:
 # Optional debug-only benchmark enabled by the project profile setting.
 # Wall-frame timing includes vsync and all game work, not just the solver.
 func _process(delta: float) -> void:
-    if not profile_enabled or not playing or profile_reported: return
+    if not profile_enabled or profile_reported: return
+    if not playing:
+        profile_last_us = 0
+        return
     profile_time += delta
     var now = Time.get_ticks_usec()
     if profile_time > profile_warmup and profile_last_us > 0:

@@ -24,5 +24,6 @@ common/physics_ticks_per_second=60
 ; 0 off, 1 root joints (lower cost), 2 all secondary joints.
 quality=2
 profile_debug=false
+profile_shadow_enabled=true
 profile_warmup=2.0
 profile_duration=10.0
