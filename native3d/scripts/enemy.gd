@@ -82,10 +82,10 @@ func _model_aabb(root: Node) -> AABB:
     while not stack.is_empty():
         var pair: Array = stack.pop_back()
         var node: Node = pair[0]
-        var local := Transform3D.IDENTITY
+        var node_xform := Transform3D.IDENTITY
         if node is Node3D:
-            local = node.transform
-        var xform: Transform3D = pair[1] * local
+            node_xform = node.transform
+        var xform: Transform3D = pair[1] * node_xform
         if node is GeometryInstance3D and node.mesh:
             var local = node.get_aabb()
             for corner in [
