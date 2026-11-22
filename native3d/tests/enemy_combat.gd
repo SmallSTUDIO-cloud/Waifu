@@ -143,9 +143,9 @@ func run_test() -> void:
         e2.timer = 5.0
         e1.global_position = Vector3(0, 0.1, -6)
         e2.global_position = Vector3(0.2, 0.1, -6)
-        for i in range(60): await physics_frame
+        for i in range(150): await physics_frame
         var gap = Vector2(e1.global_position.x - e2.global_position.x, e1.global_position.z - e2.global_position.z).length()
-        check(gap > 0.5, "enemies did not separate")
+        check(gap > 0.6, "enemies did not separate")
 
     # Hit reactions and defeat still work with the new models.
     for e in get_nodes_in_group("enemies"):
