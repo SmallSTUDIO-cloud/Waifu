@@ -111,12 +111,11 @@ func _collect(node: Node) -> void:
     if node is GeometryInstance3D and node.mesh:
         # Duplicate materials per enemy so hit flashes do not leak between
         # instances sharing the imported atlas material.
-        var material = BaseMaterial3D.new()
         var source = node.material_override
-        if source == null and node.mesh.surface_get_material(0) != null:
+        if source == null and node.mesh.get_surface_count() > 0:
             source = node.mesh.surface_get_material(0)
         if source is BaseMaterial3D:
-            material = source.duplicate()
+            var material: BaseMaterial3D = source.duplicate()
             node.material_override = material
             flash_materials.append(material)
     for child in node.get_children():
