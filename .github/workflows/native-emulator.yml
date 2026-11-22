@@ -125,11 +125,10 @@ jobs:
           - Verified on the Android emulator only (software rendering so far); please report FPS on your device.
           - Source commit: ${GITHUB_SHA}
           NOTES
-          if ! gh release create v0.4.0-native3d-test \
+          if ! gh release create v0.4.0-native3d-test "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" \
             --prerelease \
             --title "Scarlet Veil 3D v0.4.0 - test APK (prerelease)" \
-            --notes-file /tmp/release-notes.md \
-            --files "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" 2>/tmp/publish.err; then
+            --notes "$(cat /tmp/release-notes.md)" 2>/tmp/publish.err; then
             sed 's/^/::error title=prerelease-publish::/' /tmp/publish.err
             exit 1
           fi
