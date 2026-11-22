@@ -23,9 +23,12 @@ func setup(effect_kind: String, stage: int = 1, quality: int = 1) -> void:
         # Layered tapered crescents: translucent lavender feather, violet body,
         # and a bright white-pink cutting edge, as in the reference.
         var radius = 1.55 + 0.12 * (stage - 1)
-        _ring_band(mesh, radius - 0.53, radius - 0.23, -92, 92, Color(0.48, 0.12, 1, 0), Color(0.69, 0.32, 1, 0.42), true)
-        _ring_band(mesh, radius - 0.23, radius - 0.09, -92, 92, Color(0.68, 0.25, 1, 0.66), Color(0.93, 0.76, 1, 1.0), true)
-        _ring_band(mesh, radius - 0.09, radius, -92, 92, Color(1, 0.95, 1, 1.0), Color(0.65, 0.25, 1, 0), true)
+        var arc = 138.0 if stage == 3 else (105.0 if stage == 4 else 92.0)
+        if effect_quality == 1:
+            _ring_band(mesh, radius - 0.78, radius - 0.52, -arc, arc, Color(0.42, 0.12, 1, 0), Color(0.58, 0.22, 1, 0.22), true)
+        _ring_band(mesh, radius - 0.53, radius - 0.23, -arc, arc, Color(0.48, 0.12, 1, 0), Color(0.69, 0.32, 1, 0.42), true)
+        _ring_band(mesh, radius - 0.23, radius - 0.09, -arc, arc, Color(0.68, 0.25, 1, 0.66), Color(0.93, 0.76, 1, 1.0), true)
+        _ring_band(mesh, radius - 0.09, radius, -arc, arc, Color(1, 0.95, 1, 1.0), Color(0.65, 0.25, 1, 0), true)
         if stage >= 2 and effect_quality == 1:
             _petals(mesh, 8 + stage * 3, radius + 0.15)
         rotation_degrees.x = 38.0 if stage == 1 else (48.0 if stage == 2 else 20.0)
@@ -105,9 +108,18 @@ func _petals(mesh: ImmediateMesh, count: int, radius: float) -> void:
         var radial = _point(angle, 1.0)
         var width = 0.035 + 0.008 * (i % 3)
         var length = width * 2.2
-        var col = Color(0.92, 0.74, 1.0, 0.85)
-        _triangle(mesh, center - tangent * width, center + radial * length, center + tangent * width, col)
-        _triangle(mesh, center + tangent * width, center - radial * length, center - tangent * width, col)
+        var col = Color(0.94, 0.78, 1.0, 0.88)
+        var light = Color(1, 0.92, 1, 0.92)
+        var tip = center + radial * length
+        var tail = center - radial * length * 0.65
+        var left = center - tangent * width
+        var right = center + tangent * width
+        var upper_left = center + radial * length * 0.45 - tangent * width * 0.8
+        var upper_right = center + radial * length * 0.45 + tangent * width * 0.8
+        for pair in [[tail, left], [left, upper_left], [upper_left, tip], [tip, upper_right], [upper_right, right], [right, tail]]:
+            _vertex(mesh, center, light)
+            _vertex(mesh, pair[0], col)
+            _vertex(mesh, pair[1], col)
 
 func _ground_shard(mesh: ImmediateMesh, angle: float, radius: float, length: float, color: Color) -> void:
     var tip = _point(angle, radius + length)

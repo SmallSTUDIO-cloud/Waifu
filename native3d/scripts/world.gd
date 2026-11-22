@@ -343,7 +343,7 @@ func _process(delta: float) -> void:
         var total = 0.0
         for sample in profile_frames: total += sample
         var p95 = profile_frames[clampi(int(ceil(profile_frames.size() * 0.95)) - 1, 0, profile_frames.size() - 1)]
-        print("SECONDARY_PROFILE frames=%d avg_frame_ms=%.2f p95_frame_ms=%.2f solver_steps=%d avg_solver_us=%.1f max_solver_us=%d quality=%d" % [profile_frames.size(), total / profile_frames.size(), p95, player.profile_secondary_steps, float(player.profile_secondary_us) / maxf(1, player.profile_secondary_steps), player.profile_secondary_max_us, player.secondary_motion.quality])
+        print("SECONDARY_PROFILE frames=%d avg_frame_ms=%.2f p95_frame_ms=%.2f solver_steps=%d avg_solver_us=%.1f max_solver_us=%d quality=%d shadow_captures=%d avg_shadow_capture_us=%.1f" % [profile_frames.size(), total / profile_frames.size(), p95, player.profile_secondary_steps, float(player.profile_secondary_us) / maxf(1, player.profile_secondary_steps), player.profile_secondary_max_us, player.secondary_motion.quality, player.profile_shadow_count, float(player.profile_shadow_us) / maxf(1, player.profile_shadow_count)])
         profile_reported = true
         player.profile_secondary = false
 

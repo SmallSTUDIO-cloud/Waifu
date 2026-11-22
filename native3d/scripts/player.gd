@@ -49,6 +49,8 @@ var profile_secondary: bool = false
 var profile_secondary_us: int = 0
 var profile_secondary_max_us: int = 0
 var profile_secondary_steps: int = 0
+var profile_shadow_us: int = 0
+var profile_shadow_count: int = 0
 
 func _ready() -> void:
     collision_layer = 2
@@ -121,6 +123,7 @@ func _shadow_meshes(node: Node) -> void:
 func _show_dodge_shadow() -> void:
     if not shadow_root or not shadow_root.is_inside_tree() or not shadow_skeleton:
         return
+    var shadow_started = Time.get_ticks_usec() if profile_secondary else 0
     shadow_root.global_transform = model_root.global_transform
     for i in range(mini(skeleton.get_bone_count(), shadow_skeleton.get_bone_count())):
         shadow_skeleton.set_bone_pose_position(i, skeleton.get_bone_pose_position(i))
@@ -129,6 +132,9 @@ func _show_dodge_shadow() -> void:
     shadow_remaining = 0.30
     shadow_material.albedo_color.a = 0.75
     shadow_root.visible = true
+    if profile_secondary:
+        profile_shadow_us += Time.get_ticks_usec() - shadow_started
+        profile_shadow_count += 1
 
 func _attach_sword() -> void:
     var hand = skeleton.find_bone("J_Bip_R_Hand")

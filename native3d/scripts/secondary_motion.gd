@@ -130,7 +130,7 @@ func _constrain_skirt(joint: Dictionary, base: Quaternion, proposed: Quaternion)
     return base.slerp(proposed, fraction)
 
 func update(delta: float) -> void:
-    if delta <= 0.0 or not rig: return
+    if delta <= 0.0 or not rig or (quality == 0 and quality_fade_remaining <= 0.0): return
     var sample_dt = clampf(delta, 0.001, MAX_DT)
     if quality > 0 or quality_fade_remaining > 0.0: _cache_leg_segments()
     quality_fade_remaining = maxf(0.0, quality_fade_remaining - delta)
