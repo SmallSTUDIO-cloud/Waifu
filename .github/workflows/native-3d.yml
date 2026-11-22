@@ -29,14 +29,14 @@ jobs:
       - name: Import and smoke test
         run: |
           set -o pipefail
-          godot --headless --path native3d --editor --import --quit 2>&1 | tee /tmp/import.log
-          godot --headless --path native3d --script res://tests/smoke.gd 2>&1 | tee /tmp/smoke.log
-          godot --headless --path native3d --script res://tests/motion_pilot.gd 2>&1 | tee /tmp/motion-pilot.log
-          godot --headless --path native3d --script res://tests/secondary_vfx.gd 2>&1 | tee /tmp/secondary-vfx.log
-          godot --headless --path native3d --script res://tests/secondary_physics.gd 2>&1 | tee /tmp/secondary-physics.log
-          godot --headless --path native3d --script res://tests/quality_settings.gd 2>&1 | tee /tmp/quality-settings.log
-          godot --headless --path native3d --script res://tests/touch_camera.gd 2>&1 | tee /tmp/touch-camera.log
-          godot --headless --path native3d --script res://tests/enemy_combat.gd 2>&1 | tee /tmp/enemy-combat.log
+          timeout 300 godot --headless --path native3d --editor --import --quit 2>&1 | tee /tmp/import.log
+          timeout 180 godot --headless --path native3d --script res://tests/smoke.gd 2>&1 | tee /tmp/smoke.log
+          timeout 180 godot --headless --path native3d --script res://tests/motion_pilot.gd 2>&1 | tee /tmp/motion-pilot.log
+          timeout 180 godot --headless --path native3d --script res://tests/secondary_vfx.gd 2>&1 | tee /tmp/secondary-vfx.log
+          timeout 180 godot --headless --path native3d --script res://tests/secondary_physics.gd 2>&1 | tee /tmp/secondary-physics.log
+          timeout 180 godot --headless --path native3d --script res://tests/quality_settings.gd 2>&1 | tee /tmp/quality-settings.log
+          timeout 180 godot --headless --path native3d --script res://tests/touch_camera.gd 2>&1 | tee /tmp/touch-camera.log
+          timeout 180 godot --headless --path native3d --script res://tests/enemy_combat.gd 2>&1 | tee /tmp/enemy-combat.log
           errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/enemy-combat.log | grep -v 'Parameter "t" is null' || true)
           if [ -n "$errors" ]; then
             echo "::error::$errors"
