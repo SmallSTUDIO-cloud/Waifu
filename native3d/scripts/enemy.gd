@@ -92,7 +92,7 @@ func _add_visor(bounds: AABB, scale_factor: float) -> void:
     visor_material.emission_energy_multiplier = 2.6
     visor.material_override = visor_material
     visor.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    visor.position = Vector3(final.get_center().x, final.position.y + final.size.y * 0.80, final.position.z + final.size.z - 0.02)
+    visor.position = Vector3(final.get_center().x, final.position.y + final.size.y * 0.62, final.position.z + final.size.z * 0.985 - 0.015)
     model_root.add_child(visor)
 
 func _model_aabb(root: Node) -> AABB:
