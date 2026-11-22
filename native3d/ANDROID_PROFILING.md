@@ -24,3 +24,16 @@ Run `44980064667`, debug build, API 30 x86_64, 640×320, ANGLE/SwiftShader; one 
 | Full | 58.93 ms | 118.42 ms | 738.5 µs |
 
 One shadow pose-copy sample per tier was 84, 67 and 68 µs respectively; this does not measure shadow GPU time or duplicated mesh memory. Godot static memory read 33.5 MiB for each, excluding other allocations. These single, short software-rendered debug trials are noisy and not physical-phone or thermal data; they cannot establish the 60 FPS target or a statistically reliable before/after performance comparison. Full mesh coverage and clipping remain unverified on-device. No APK was published.
+
+### Latest emulator smoke and shadow isolation
+
+Run `45022974113` at `f57e846` passed with API 30 x86_64, debug build and software ANGLE. One short run per condition (not a controlled physical-device benchmark):
+
+| Physics / shadow | Frame p50 | Frame p95 | Mean solver | Godot static memory |
+| --- | ---: | ---: | ---: | ---: |
+| Off / on | 52.44 ms | 97.66 ms | 7.0 µs | 33.6 MiB |
+| Reduced / on | 49.89 ms | 97.62 ms | 331.4 µs | 33.6 MiB |
+| Full / on | 54.67 ms | 102.51 ms | 530.5 µs | 33.6 MiB |
+| Full / off | 53.09 ms | 98.37 ms | 600.0 µs | 33.4 MiB |
+
+The enabled builds recorded one pose-copy sample of 64–72 µs; the disabled build recorded zero. These single short samples are noisy and do **not** isolate shadow GPU cost, total memory, thermals, or prove a statistically meaningful speedup. Physical-device measurements remain required; no new APK was published.

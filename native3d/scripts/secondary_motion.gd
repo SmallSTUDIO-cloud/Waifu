@@ -103,8 +103,10 @@ func _constrain_skirt(joint: Dictionary, base: Quaternion, proposed: Quaternion)
     var fraction = 1.0
     var base_middle = _skirt_point(joint, base, parent_pose, 0.55)
     var base_tip = _skirt_point(joint, base, parent_pose, 1.0)
-    var basis_scale = parent_pose.basis.get_scale().abs()
-    var scale_bound = maxf(basis_scale.x, maxf(basis_scale.y, basis_scale.z))
+    # Frobenius norm bounds the basis operator norm even if inherited
+    # non-uniform scale introduces shear; max column scale alone does not.
+    var basis = parent_pose.basis
+    var scale_bound = sqrt(basis.x.length_squared() + basis.y.length_squared() + basis.z.length_squared())
     # Guard two points per chain segment. Conservative rotation sweeps catch a tip
     # passing through a capsule even when both end poses are outside.
     for segment in leg_segments:
