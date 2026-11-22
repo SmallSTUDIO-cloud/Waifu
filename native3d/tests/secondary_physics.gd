@@ -120,6 +120,14 @@ func run_test() -> void:
     if base.angle_to(swept) > PI / 4.0:
         fail("swept crossing missed capsule")
         return
+    # Catch a collision halfway along a segment when the tip stays clear.
+    rig.set_bone_rest(3, Transform3D(Basis.IDENTITY, Vector3(sqrt(0.5) * 0.55, -sqrt(0.5) * 0.55, -0.5)))
+    rig.reset_bone_poses()
+    probe._cache_leg_segments()
+    var midpoint_limited = probe._constrain_skirt(cloth, base, desired)
+    if base.angle_to(midpoint_limited) >= base.angle_to(desired) - 0.001:
+        fail("mid-segment capsule crossing missed")
+        return
     rig.queue_free()
     print("PASS secondary categories, bounds, settle, animation ownership, capsule math, quality modes")
     quit(0)

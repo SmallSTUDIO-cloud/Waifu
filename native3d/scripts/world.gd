@@ -417,8 +417,9 @@ func _attack() -> void:
 func _spawn_vfx(kind: String, location: Vector3, stage: int = 1) -> Node3D:
     # Keep transient geometry bounded when hitting several enemies at once.
     var active_effects = get_tree().get_nodes_in_group("combat_effects").filter(func(node): return not node.is_queued_for_deletion())
-    if active_effects.size() >= (12 if quality_settings.effects == 1 else 6):
-        active_effects[0].queue_free()
+    var budget = 12 if quality_settings.effects == 1 else 6
+    while active_effects.size() >= budget:
+        active_effects.pop_front().queue_free()
     var effect = COMBAT_VFX.new()
     effect.add_to_group("combat_effects")
     effect.setup(kind, stage, quality_settings.effects)

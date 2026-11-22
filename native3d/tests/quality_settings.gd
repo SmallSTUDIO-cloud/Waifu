@@ -44,6 +44,16 @@ func run_test() -> void:
     if low_count != 1 or full_count <= low_count:
         fail("reduced effects did not reduce transient effects")
         return
+    for effect in get_nodes_in_group("combat_effects"): effect.queue_free()
+    await process_frame
+    scene.quality_settings.effects = 1
+    for i in range(5): scene._swing_vfx(4)
+    scene.quality_settings.effects = 0
+    scene._swing_vfx(4)
+    var live = get_nodes_in_group("combat_effects").filter(func(e): return not e.is_queued_for_deletion())
+    if live.size() > 6:
+        fail("switching to reduced did not enforce its effect budget")
+        return
     scene.start_game()
     var hp = scene.player.health
     scene._pause()
