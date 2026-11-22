@@ -99,10 +99,18 @@ jobs:
           echo "::warning title=Release APK build::$size bytes, manifest and resources verified"
           ls -lh "$RUNNER_TEMP"/*.apk
       - name: Upload prerelease APK artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: scarlet-veil-3d-prerelease-apk
           path: ${{ runner.temp }}/scarlet-veil-3d-prerelease.apk
+          retention-days: 14
+      - name: Upload release export log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-export-log
+          path: /tmp/android-export-release.log
           retention-days: 14
       - name: Launch APK on Android emulator
         uses: reactivecircus/android-emulator-runner@v2
