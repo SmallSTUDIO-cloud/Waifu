@@ -4,6 +4,7 @@ const PLAYER_SCRIPT = preload("res://scripts/player.gd")
 const ENEMY_SCRIPT = preload("res://scripts/enemy.gd")
 const JOYSTICK_SCRIPT = preload("res://scripts/joystick.gd")
 const COMBAT_VFX = preload("res://scripts/combat_vfx.gd")
+const SETTINGS = preload("res://scripts/settings.gd")
 var player: CharacterBody3D
 var camera: Camera3D
 var joystick: Control
@@ -23,6 +24,10 @@ var profile_time: float = 0.0
 var profile_last_us: int = 0
 var profile_frames: Array[float] = []
 var profile_reported: bool = false
+var quality_settings: RefCounted
+var menu_action: Button
+var physics_button: Button
+var effects_button: Button
 
 func _ready() -> void:
     _environment()
@@ -41,6 +46,9 @@ func _ready() -> void:
     camera.position = Vector3(0, 4.0, 7.0)
     add_child(camera)
     camera.look_at(Vector3(0, 1, 0))
+    quality_settings = SETTINGS.new()
+    quality_settings.load_settings()
+    player.secondary_motion.set_quality(quality_settings.physics)
     _ui()
     _update_camera(1.0)
     var args = OS.get_cmdline_user_args()
@@ -228,8 +236,8 @@ func _show_menu(title: String, subtitle: String, action: String) -> void:
     column.set_anchors_and_offsets_preset(Control.PRESET_CENTER)
     column.offset_left = -300
     column.offset_right = 300
-    column.offset_top = -125
-    column.offset_bottom = 125
+    column.offset_top = -205
+    column.offset_bottom = 205
     column.add_theme_constant_override("separation", 15)
     menu.add_child(column)
     var kicker = _make_label("SMALL STUDIO  /  SCARLET VEIL", 17, Color(0.96, 0.32, 0.38))
@@ -239,7 +247,35 @@ func _show_menu(title: String, subtitle: String, action: String) -> void:
     column.add_child(_make_label(subtitle, 18, Color(0.76, 0.82, 0.85)))
     var button = _button(action, Vector2(260, 60))
     column.add_child(button)
+    menu_action = button
     button.pressed.connect(start_game)
+    var quality_row = HBoxContainer.new()
+    quality_row.add_theme_constant_override("separation", 12)
+    column.add_child(quality_row)
+    physics_button = _button("", Vector2(285, 52))
+    effects_button = _button("", Vector2(285, 52))
+    physics_button.add_theme_font_size_override("font_size", 16)
+    effects_button.add_theme_font_size_override("font_size", 16)
+    quality_row.add_child(physics_button)
+    quality_row.add_child(effects_button)
+    physics_button.pressed.connect(_cycle_physics)
+    effects_button.pressed.connect(_cycle_effects)
+    _refresh_quality_labels()
+
+func _refresh_quality_labels() -> void:
+    physics_button.text = "PHYSICS: " + ["OFF", "REDUCED", "FULL"][quality_settings.physics]
+    effects_button.text = "VFX: " + ["REDUCED", "FULL"][quality_settings.effects]
+
+func _cycle_physics() -> void:
+    quality_settings.physics = (quality_settings.physics + 1) % 3
+    player.secondary_motion.set_quality(quality_settings.physics)
+    quality_settings.save_settings()
+    _refresh_quality_labels()
+
+func _cycle_effects() -> void:
+    quality_settings.effects = (quality_settings.effects + 1) % 2
+    quality_settings.save_settings()
+    _refresh_quality_labels()
 
 func start_game() -> void:
     for node in get_tree().get_nodes_in_group("enemies"):
@@ -343,11 +379,11 @@ func _attack() -> void:
 func _spawn_vfx(kind: String, location: Vector3, stage: int = 1) -> Node3D:
     # Keep transient geometry bounded when hitting several enemies at once.
     var active_effects = get_tree().get_nodes_in_group("combat_effects").filter(func(node): return not node.is_queued_for_deletion())
-    if active_effects.size() >= 12:
+    if active_effects.size() >= (12 if quality_settings.effects == 1 else 6):
         active_effects[0].queue_free()
     var effect = COMBAT_VFX.new()
     effect.add_to_group("combat_effects")
-    effect.setup(kind, stage)
+    effect.setup(kind, stage, quality_settings.effects)
     add_child(effect)
     effect.global_position = location
     return effect
@@ -356,7 +392,7 @@ func _swing_vfx(stage: int) -> void:
     var effect = _spawn_vfx("slash", player.global_position + Vector3(0, 1.0, 0), stage)
     var yaw = atan2(-player.facing.x, -player.facing.z)
     effect.rotation.y = yaw
-    if stage >= 2:
+    if stage >= 2 and quality_settings.effects == 1:
         var echo = _spawn_vfx("echo", player.global_position + Vector3(0, 1.0, 0), stage)
         echo.rotation.y = yaw
     if stage >= 3:
@@ -411,10 +447,8 @@ func _pause() -> void:
     hud.visible = false
     for enemy in get_tree().get_nodes_in_group("enemies"): enemy.enabled = false
     _show_menu("PAUSED", "RETURN TO THE ROOFTOP WHEN READY", "RESUME")
-    var column = menu.get_child(menu.get_child_count() - 1)
-    var button = column.get_child(column.get_child_count() - 1)
-    button.pressed.disconnect(start_game)
-    button.pressed.connect(_resume)
+    menu_action.pressed.disconnect(start_game)
+    menu_action.pressed.connect(_resume)
 
 func _resume() -> void:
     menu.visible = false

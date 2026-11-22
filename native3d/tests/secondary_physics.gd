@@ -68,7 +68,7 @@ func run_test() -> void:
     # Restore test bone before comparing modes.
     player.skeleton.set_bone_pose_rotation(j.bone, j.rest)
     sim.set_quality(1)
-    sim.update(1.0 / 60.0)
+    for i in range(20): sim.update(1.0 / 60.0)
     player.model_root.position.x += 0.04
     sim.update(1.0 / 60.0)
     var low_active = 0
@@ -81,9 +81,13 @@ func run_test() -> void:
     if low_active == 0 or low_active >= sim.joints.size():
         fail("quality did not reduce work")
         return
+    var before_change = player.skeleton.get_bone_pose_rotation(sim.joints[0].bone)
     sim.set_quality(0)
+    if absf(before_change.dot(player.skeleton.get_bone_pose_rotation(sim.joints[0].bone))) < 0.999999:
+        fail("quality change snapped pose")
+        return
     player.model_root.position.x += 0.03
-    sim.update(1.0 / 60.0)
+    for i in range(20): sim.update(1.0 / 60.0)
     for joint in sim.joints:
         if absf(joint.x.angle) > 0.000001 or absf(joint.z.angle) > 0.000001:
             fail("off mode did not reset springs")

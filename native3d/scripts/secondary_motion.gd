@@ -48,7 +48,7 @@ func setup(skeleton: Skeleton3D) -> void:
         var damping = (9.0 if kind == "hair" else 11.0) * variation
         var base = rig.get_bone_pose_rotation(index)
         joints.append({"bone": index, "parent": parent, "child": child, "kind": kind,
-            "root": root_joint, "rest": base, "base": base, "last": base, "limit": limit,
+            "root": root_joint, "weight": 1.0, "rest": base, "base": base, "last": base, "limit": limit,
             "stiffness": stiffness, "damping": damping, "variation": variation,
             "x": SPRING.new(), "z": SPRING.new(), "initialized": false,
             "position": Vector3.ZERO, "velocity": Vector3.ZERO, "filtered_accel": Vector3.ZERO,
@@ -57,7 +57,6 @@ func setup(skeleton: Skeleton3D) -> void:
 func set_quality(level: int) -> void:
     var next = clampi(level, 0, 2)
     if next == quality: return
-    reset()
     quality = next
 
 func reset() -> void:
@@ -74,6 +73,7 @@ func reset() -> void:
         joint.z.angle = 0.0; joint.z.velocity = 0.0
         joint.base = rig.get_bone_pose_rotation(joint.bone)
         joint.last = joint.base
+        joint.weight = 1.0 if quality == 2 or (quality == 1 and joint.root) else 0.0
 
 func _segment_distance(point: Vector3, a: Vector3, b: Vector3) -> float:
     var ab = b - a
@@ -108,10 +108,19 @@ func _constrain_skirt(joint: Dictionary, base: Quaternion, proposed: Quaternion)
     return base.slerp(proposed, fraction)
 
 func update(delta: float) -> void:
-    if delta <= 0.0 or not rig or quality == 0: return
+    if delta <= 0.0 or not rig: return
     var sample_dt = clampf(delta, 0.001, MAX_DT)
     for joint in joints:
-        if quality == 1 and not joint.root: continue
+        var target_weight = 1.0 if quality == 2 or (quality == 1 and joint.root) else 0.0
+        joint.weight = move_toward(float(joint.weight), target_weight, delta * 4.0)
+        if joint.weight <= 0.0:
+            var last_pose = rig.get_bone_pose_rotation(joint.bone)
+            if absf(last_pose.dot(joint.last)) > 0.999999: rig.set_bone_pose_rotation(joint.bone, joint.base)
+            joint.last = rig.get_bone_pose_rotation(joint.bone)
+            joint.x.angle = 0.0; joint.x.velocity = 0.0
+            joint.z.angle = 0.0; joint.z.velocity = 0.0
+            joint.initialized = false
+            continue
         var current = rig.get_bone_pose_rotation(joint.bone)
         # Remove our last result only if it is still present; an animation
         # writing this bone in the meantime is treated as the new base pose.
@@ -147,7 +156,7 @@ func update(delta: float) -> void:
             joint.z.step(target_z, step_dt, joint.stiffness, joint.damping, limit)
             remaining -= step_dt
         var offset = Quaternion(Vector3.RIGHT, joint.x.angle) * Quaternion(Vector3.FORWARD, joint.z.angle)
-        var result = base * offset
+        var result = base * Quaternion.IDENTITY.slerp(offset, float(joint.weight))
         if joint.kind == "skirt": result = _constrain_skirt(joint, base, result)
         joint.last = result.normalized()
         rig.set_bone_pose_rotation(joint.bone, joint.last)

@@ -8,8 +8,10 @@ var material: StandardMaterial3D
 var shape: MeshInstance3D
 var spin_direction: float = 1.0
 var intensity_stage: int = 1
+var effect_quality: int = 1
 
-func setup(effect_kind: String, stage: int = 1) -> void:
+func setup(effect_kind: String, stage: int = 1, quality: int = 1) -> void:
+    effect_quality = clampi(quality, 0, 1)
     kind = effect_kind
     intensity_stage = clampi(stage, 1, 4)
     spin_direction = -1.0 if stage == 2 else 1.0
@@ -24,14 +26,14 @@ func setup(effect_kind: String, stage: int = 1) -> void:
         _ring_band(mesh, radius - 0.53, radius - 0.23, -92, 92, Color(0.48, 0.12, 1, 0), Color(0.69, 0.32, 1, 0.42), true)
         _ring_band(mesh, radius - 0.23, radius - 0.09, -92, 92, Color(0.68, 0.25, 1, 0.66), Color(0.93, 0.76, 1, 1.0), true)
         _ring_band(mesh, radius - 0.09, radius, -92, 92, Color(1, 0.95, 1, 1.0), Color(0.65, 0.25, 1, 0), true)
-        if stage >= 2:
+        if stage >= 2 and effect_quality == 1:
             _petals(mesh, 8 + stage * 3, radius + 0.15)
         rotation_degrees.x = 38.0 if stage == 1 else (48.0 if stage == 2 else 20.0)
         rotation_degrees.z = -18.0 if stage == 2 else 18.0
     elif kind == "echo":
         _ring_band(mesh, 1.75, 1.88, -115, 115, Color(0.42, 0.12, 1, 0), Color(0.8, 0.52, 1, 0.68), true)
         _ring_band(mesh, 1.88, 1.93, -115, 115, Color(1, 0.94, 1, 0.9), Color(0.56, 0.18, 1, 0), true)
-        _petals(mesh, 14, 1.95)
+        if effect_quality == 1: _petals(mesh, 14, 1.95)
         rotation_degrees.x = 60.0 if stage == 3 else 52.0
         rotation_degrees.z = 24.0 if stage == 3 else -30.0
     elif kind == "finisher":
@@ -39,11 +41,11 @@ func setup(effect_kind: String, stage: int = 1) -> void:
         _ring_band(mesh, 0.60, 0.68, 0, 360, Color(1, 0.9, 1, 0.92), Color(0.5, 0.15, 1, 0), false)
         for i in range(18):
             _ground_shard(mesh, TAU * float(i) / 18.0, 0.70, 0.20 + 0.07 * (i % 3), Color(0.78, 0.5, 1, 0.7))
-        _petals(mesh, 12, 0.9)
+        if effect_quality == 1: _petals(mesh, 12, 0.9)
     elif kind == "cleave":
         _ring_band(mesh, 1.20, 1.58, -55, 55, Color(0.52, 0.15, 1, 0), Color(0.82, 0.55, 1, 0.85), true)
         _ring_band(mesh, 1.58, 1.65, -55, 55, Color(1, 0.96, 1, 0.98), Color(0.58, 0.22, 1, 0), true)
-        _petals(mesh, 12, 1.75)
+        if effect_quality == 1: _petals(mesh, 12, 1.75)
         rotation_degrees.x = 85.0
         rotation_degrees.z = -28.0
     elif kind == "impact":
