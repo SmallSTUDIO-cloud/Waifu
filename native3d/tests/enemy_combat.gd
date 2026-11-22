@@ -138,7 +138,9 @@ func run_test() -> void:
     for e in get_nodes_in_group("enemies"):
         if e != e1 and e.get("kind") == "large" and not e.get("dead"): e2 = e
     if e1 and e2:
-        # Keep both in chase mode away from the player so only separation acts.
+        # Re-enable and keep both in chase mode away from the player.
+        e1.enabled = true
+        e2.enabled = true
         e1.timer = 5.0
         e2.timer = 5.0
         e1.global_position = Vector3(0, 0.1, -6)
