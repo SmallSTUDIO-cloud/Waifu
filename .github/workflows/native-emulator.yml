@@ -90,7 +90,7 @@ jobs:
             adb logcat -d -v brief > /tmp/android-live.log
             grep -i "com.smallstudio.scarletveil3d" /tmp/android-activity.txt || true
             adb exec-out screencap -p > /tmp/android-menu.png
-            adb shell input tap 320 190
+            adb shell input tap 320 155
             sleep 2
             adb shell dumpsys gfxinfo com.smallstudio.scarletveil3d reset > /dev/null
             # Emulator is 640x320 in landscape; touch positions are physical pixels.

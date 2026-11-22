@@ -27,6 +27,8 @@ var profile_time: float = 0.0
 var profile_last_us: int = 0
 var profile_frames: Array[float] = []
 var profile_reported: bool = false
+var profile_warmup: float = 2.0
+var profile_duration: float = 10.0
 var quality_settings: RefCounted
 var menu_action: Button
 var physics_button: Button
@@ -38,6 +40,8 @@ func _ready() -> void:
     player = PLAYER_SCRIPT.new()
     add_child(player)
     profile_enabled = OS.is_debug_build() and bool(ProjectSettings.get_setting("secondary_motion/profile_debug", false))
+    profile_warmup = maxf(0.0, float(ProjectSettings.get_setting("secondary_motion/profile_warmup", 2.0)))
+    profile_duration = maxf(profile_warmup + 1.0, float(ProjectSettings.get_setting("secondary_motion/profile_duration", 10.0)))
     player.profile_secondary = profile_enabled
     player.position = Vector3(0, 0.1, 3)
     player.health_changed.connect(_on_health)
@@ -335,15 +339,17 @@ func _process(delta: float) -> void:
     if not profile_enabled or not playing or profile_reported: return
     profile_time += delta
     var now = Time.get_ticks_usec()
-    if profile_time > 2.0 and profile_last_us > 0:
+    if profile_time > profile_warmup and profile_last_us > 0:
         profile_frames.append(float(now - profile_last_us) / 1000.0)
     profile_last_us = now
-    if profile_time >= 10.0 and not profile_frames.is_empty():
+    if profile_time >= profile_duration and not profile_frames.is_empty():
         profile_frames.sort()
         var total = 0.0
         for sample in profile_frames: total += sample
+        var p50 = profile_frames[clampi(int(ceil(profile_frames.size() * 0.50)) - 1, 0, profile_frames.size() - 1)]
         var p95 = profile_frames[clampi(int(ceil(profile_frames.size() * 0.95)) - 1, 0, profile_frames.size() - 1)]
-        print("SECONDARY_PROFILE frames=%d avg_frame_ms=%.2f p95_frame_ms=%.2f solver_steps=%d avg_solver_us=%.1f max_solver_us=%d quality=%d shadow_captures=%d avg_shadow_capture_us=%.1f" % [profile_frames.size(), total / profile_frames.size(), p95, player.profile_secondary_steps, float(player.profile_secondary_us) / maxf(1, player.profile_secondary_steps), player.profile_secondary_max_us, player.secondary_motion.quality, player.profile_shadow_count, float(player.profile_shadow_us) / maxf(1, player.profile_shadow_count)])
+        var p99 = profile_frames[clampi(int(ceil(profile_frames.size() * 0.99)) - 1, 0, profile_frames.size() - 1)]
+        print("SECONDARY_PROFILE frames=%d avg_frame_ms=%.2f p50_frame_ms=%.2f p95_frame_ms=%.2f p99_frame_ms=%.2f solver_steps=%d avg_solver_us=%.1f max_solver_us=%d quality=%d shadow_captures=%d avg_shadow_capture_us=%.1f godot_static_mb=%.1f" % [profile_frames.size(), total / profile_frames.size(), p50, p95, p99, player.profile_secondary_steps, float(player.profile_secondary_us) / maxf(1, player.profile_secondary_steps), player.profile_secondary_max_us, player.secondary_motion.quality, player.profile_shadow_count, float(player.profile_shadow_us) / maxf(1, player.profile_shadow_count), Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0])
         profile_reported = true
         player.profile_secondary = false
 
