@@ -60,8 +60,8 @@ func _ready() -> void:
     _update_camera(1.0)
     var args = OS.get_cmdline_user_args()
     if player.motion_driver:
-        player.motion_driver.candidate_formal_walk = "--candidate-formal-walk" in args
-        player.motion_driver.candidate_sword_dash = "--candidate-sword-dash" in args
+        player.motion_driver.use_formal_walk = not "--legacy-walk" in args
+        player.motion_driver.use_sword_dash = not "--legacy-dash" in args
     if "--smoke-play" in args or "--preview-move" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args or "--preview-grip" in args:
         start_game()
     for side in ["front", "side", "rear"]:

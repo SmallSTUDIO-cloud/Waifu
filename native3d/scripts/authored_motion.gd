@@ -36,9 +36,9 @@ var combo_source: Node3D
 var combo_rig: Skeleton3D
 var combo_animator: AnimationPlayer
 var combo_mapped: Array[Dictionary] = []
-# Evaluated via deterministic preview flags before enabling either by default.
-var candidate_formal_walk: bool = false
-var candidate_sword_dash: bool = false
+# Use authored locomotion/dash with the previous clips as fallbacks.
+var use_formal_walk: bool = true
+var use_sword_dash: bool = true
 
 func setup(parent: Node3D, target: Skeleton3D) -> bool:
     target_rig = target
@@ -100,13 +100,13 @@ func update(delta: float, speed: float, attack_progress: float, dash_progress: f
     var use_combo = attack_progress >= 0.0 and dash_progress < 0.0 and combo_mapped.size() == BONE_MAP.size() and combo_animator != null
     if use_combo:
         use_combo = combo_animator.has_animation(COMBO_CLIPS[clampi(combo - 1, 0, 3)])
-    var use_authored_dash = dash_progress >= 0.0 and candidate_sword_dash and combo_animator != null and combo_mapped.size() == BONE_MAP.size() and combo_animator.has_animation("Sword_Dash")
+    var use_authored_dash = dash_progress >= 0.0 and use_sword_dash and combo_animator != null and combo_mapped.size() == BONE_MAP.size() and combo_animator.has_animation("Sword_Dash")
     if dash_progress >= 0.0:
         desired = "Sword_Dash" if use_authored_dash else "Jog_Fwd"
     elif attack_progress >= 0.0:
         desired = COMBO_CLIPS[clampi(combo - 1, 0, 3)] if use_combo else "Sword_Attack"
     elif speed > (0.07 if current in ["Walk", "Walk_Formal"] else 0.16):
-        desired = "Walk_Formal" if candidate_formal_walk and animator.has_animation("Walk_Formal") else "Walk"
+        desired = "Walk_Formal" if use_formal_walk and animator.has_animation("Walk_Formal") else "Walk"
     var use_second_rig = use_combo or use_authored_dash
     var active_animator = combo_animator if use_second_rig else animator
     var active_rig = combo_rig if use_second_rig else source_rig

@@ -12,6 +12,9 @@ func run_test() -> void:
         printerr("FAIL: authored skeleton mapping incomplete")
         quit(1)
         return
+    # Test the previous authored fallback separately from the new defaults.
+    driver.use_formal_walk = false
+    driver.use_sword_dash = false
     print("SOURCE CLIPS ", driver.animator.get_animation_list())
     for clip in ["Sword_Idle", "Walk", "Jog_Fwd", "Sword_Attack", "Roll"]:
         if not driver.animator.has_animation(clip):
@@ -80,16 +83,16 @@ func run_test() -> void:
         printerr("FAIL: dodge state")
         quit(1)
         return
-    driver.candidate_formal_walk = true
+    driver.use_formal_walk = true
     driver.update(0.1, 0.9, -1.0, -1.0, 1)
     if driver.current != "Walk_Formal":
-        printerr("FAIL: formal walk candidate")
+        printerr("FAIL: formal walk")
         quit(1)
         return
-    driver.candidate_sword_dash = true
+    driver.use_sword_dash = true
     driver.update(0.1, 0.0, -1.0, 0.4, 1)
     if driver.current != "Sword_Dash":
-        printerr("FAIL: authored dash candidate")
+        printerr("FAIL: authored dash")
         quit(1)
         return
     print("PASS authored motion pilot: authored clips, 22 mapped bones, state and animated pose")
