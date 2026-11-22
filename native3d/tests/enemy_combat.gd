@@ -124,10 +124,13 @@ func run_test() -> void:
         print("PHASE dodge-end hp=", player.health)
         check(player.health == 100, "dodge did not avoid the bolt")
     print("PHASE expiry-start")
-    # Bolts expire instead of lingering.
+    # Bolts expire instead of lingering. Park all robots first so the crash
+    # bisect stays attributable to projectile lifetime handling.
+    for e in get_nodes_in_group("enemies"): e.enabled = false
     var orphan = load("res://scripts/enemy_projectile.gd").new()
     scene.add_child(orphan)
-    orphan.setup(player.global_position + Vector3(0, 1, 5), Vector3(0, 0, -1), player)
+    # Start far enough away that the bolt must expire by lifetime, not impact.
+    orphan.setup(player.global_position + Vector3(0, 1, 30), Vector3(0, 0, -1), player)
     var expired_seen = false
     orphan.expired.connect(func(_p): expired_seen = true)
     for i in range(200):
@@ -154,6 +157,7 @@ func run_test() -> void:
     for e in get_nodes_in_group("enemies"):
         e.take_damage(99)
     await process_frame
+    print("PHASE defeat-end remaining=", scene.remaining)
     check(scene.remaining == 0 and not scene.playing, "victory after defeating all robots")
     check(get_nodes_in_group("enemies").is_empty(), "defeated robots removed from group")
 
