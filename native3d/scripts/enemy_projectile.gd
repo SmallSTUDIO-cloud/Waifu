@@ -65,9 +65,12 @@ func _physics_process(delta: float) -> void:
         var aim_point = target.global_position + Vector3(0, 0.9, 0)
         if global_position.distance_to(aim_point) <= HIT_RADIUS:
             hit_player.emit(global_position)
-            queue_free()
+            call_deferred("queue_free")
             return
 
 func _finish() -> void:
+    print("BOLT finish at ", global_position, " life=", life)
     expired.emit(global_position)
-    queue_free()
+    print("BOLT emitted")
+    call_deferred("queue_free")
+    print("BOLT deferred-free")

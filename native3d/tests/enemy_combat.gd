@@ -140,7 +140,7 @@ func run_test() -> void:
     orphan.expired.connect(_on_orphan_expired)
     for i in range(200):
         await physics_frame
-        if i % 20 == 0: print("PHASE expiry tick=", i, " orphan_valid=", is_instance_valid(orphan), " pos=", orphan.global_position if is_instance_valid(orphan) else Vector3.ZERO, " projectiles=", get_nodes_in_group("enemy_projectiles").size())
+        if i % 20 == 0 or i > 144: print("PHASE expiry tick=", i, " orphan_valid=", is_instance_valid(orphan), " pos=", orphan.global_position if is_instance_valid(orphan) else Vector3.ZERO, " projectiles=", get_nodes_in_group("enemy_projectiles").size())
         if orphan.is_queued_for_deletion(): break
     print("PHASE expiry-end")
     check(expired_seen and orphan.is_queued_for_deletion(), "bolt did not expire")
