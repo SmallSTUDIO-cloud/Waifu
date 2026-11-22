@@ -49,6 +49,8 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Configure debug export
         run: |
+          export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
           mkdir -p "$HOME/.android" "$HOME/.config/godot"
           keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
           keytool -genkeypair -keystore "$HOME/.android/release.keystore" -storepass android -keypass android -alias releasetest -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Scarlet Veil Test,O=SmallStudio,C=BD'
@@ -95,7 +97,19 @@ jobs:
           unzip -l "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" | grep -q 'AndroidManifest.xml'
           unzip -l "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" | grep -q 'resources.arsc'
           unzip -l "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" | grep -q 'classes.dex'
-          apksigner verify --print-certs "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" 2>/dev/null | head -3 || true
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          ZIPALIGN=$(ls "$ANDROID_HOME"/build-tools/*/zipalign 2>/dev/null | sort -V | tail -1)
+          echo "::notice title=tools::apksigner=$APKSIGNER zipalign=$ZIPALIGN"
+          "$ZIPALIGN" -c -p 4 "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" && echo "zipalign OK"
+          echo "::group::apksigner verify before re-sign"
+          "$APKSIGNER" verify --verbose "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk" || true
+          echo "::endgroup::"
+          "$APKSIGNER" sign --ks "$HOME/.android/release.keystore" --ks-key-alias releasetest --ks-pass pass:android --key-pass pass:android --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --out "$RUNNER_TEMP/scarlet-veil-3d-prerelease-signed.apk" "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk"
+          mv "$RUNNER_TEMP/scarlet-veil-3d-prerelease-signed.apk" "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk"
+          echo "::group::apksigner verify after re-sign"
+          "$APKSIGNER" verify --verbose --print-certs "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk"
+          echo "::endgroup::"
+          size=$(stat -c %s "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk")
           echo "::warning title=Release APK build::$size bytes, manifest and resources verified"
           ls -lh "$RUNNER_TEMP"/*.apk
       - name: Upload prerelease APK artifact
@@ -152,6 +166,20 @@ jobs:
             adb install -r "$RUNNER_TEMP/secondary-debug.apk"
             : > /tmp/android-live.log
             for level in 2 0 1; do echo "::warning title=Emulator tier::Testing physics quality $level"; adb shell am force-stop com.smallstudio.scarletveil3d; adb shell pm clear com.smallstudio.scarletveil3d > /dev/null; adb logcat -c; adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.smallstudio.scarletveil3d; if [ "$level" = 2 ]; then sleep 50; else sleep 20; fi; adb shell pidof com.smallstudio.scarletveil3d || exit 1; adb exec-out screencap -p > "/tmp/android-menu-$level.png"; if [ "$level" = 0 ] || [ "$level" = 1 ]; then adb shell input tap 240 190; sleep 1; fi; if [ "$level" = 1 ]; then adb shell input tap 240 190; sleep 1; fi; adb shell input tap 320 155; sleep 2; adb shell dumpsys gfxinfo com.smallstudio.scarletveil3d reset > /dev/null; adb shell input swipe 35 280 35 210 2500; adb shell input tap 590 280; adb shell input tap 530 280; sleep 9; adb shell dumpsys gfxinfo com.smallstudio.scarletveil3d framestats > /tmp/android-framestats.txt; adb shell pidof com.smallstudio.scarletveil3d || exit 1; adb exec-out screencap -p > /tmp/android-frame.png; adb logcat -d -v brief > "/tmp/android-tier-$level.log"; cat "/tmp/android-tier-$level.log" >> /tmp/android-live.log; grep "SECONDARY_PROFILE.*quality=$level " "/tmp/android-tier-$level.log" || { echo "::error::Missing profile or incorrect quality selection: $level"; exit 1; }; done
+            echo '::warning title=Emulator phase::Installing signed release (prerelease) APK'
+            adb shell am force-stop com.smallstudio.scarletveil3d || true
+            adb install -r "$RUNNER_TEMP/scarlet-veil-3d-prerelease.apk"
+            adb shell pm clear com.smallstudio.scarletveil3d > /dev/null || true
+            adb logcat -c
+            adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.smallstudio.scarletveil3d
+            sleep 20
+            adb shell pidof com.smallstudio.scarletveil3d || { echo '::error::Release APK did not start on emulator'; exit 1; }
+            adb exec-out screencap -p > /tmp/android-release.png
+            adb shell input tap 320 155 && sleep 2 && adb shell input swipe 35 280 35 210 2500 && adb shell input tap 590 280 && sleep 6
+            adb shell pidof com.smallstudio.scarletveil3d || { echo '::error::Release APK crashed during gameplay'; exit 1; }
+            adb logcat -d -v brief > /tmp/android-release.log
+            grep -q 'FATAL EXCEPTION' /tmp/android-release.log && { cat /tmp/android-release.log; exit 1; } || true
+            echo '::notice title=Release APK::installed and ran on emulator (API 30)'
             adb shell am force-stop com.smallstudio.scarletveil3d && adb install -r "$RUNNER_TEMP/secondary-no-shadow.apk" && adb shell pm clear com.smallstudio.scarletveil3d > /dev/null && adb logcat -c && adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.smallstudio.scarletveil3d && sleep 20 && adb shell input tap 320 155 && sleep 2 && adb shell input swipe 35 280 35 210 2500 && adb shell input tap 590 280 && adb shell input tap 530 280 && sleep 9 && adb shell pidof com.smallstudio.scarletveil3d && adb logcat -d -v brief > /tmp/android-no-shadow.log && cat /tmp/android-no-shadow.log >> /tmp/android-live.log && grep "SECONDARY_PROFILE.*quality=2 shadow_captures=0 " /tmp/android-no-shadow.log
             adb shell dumpsys activity activities > /tmp/android-activity.txt
             adb logcat -d -s AndroidRuntime:E > /tmp/android-errors.log
