@@ -63,11 +63,16 @@ func run_test() -> void:
     var hp_before = player.health
     for i in range(12): await physics_frame
     check(player.health == hp_before, "bruiser hit from 6m without windup")
+    print("PHASE chase-start dist=", bruiser.global_position.distance_to(player.global_position))
+    for i in range(40): await physics_frame
+    print("PHASE chase-end dist=", bruiser.global_position.distance_to(player.global_position), " mode=", bruiser.mode)
     check(bruiser.mode == "chase" and bruiser.global_position.distance_to(player.global_position) < 5.5, "bruiser did not chase")
     bruiser.global_position = player.global_position + Vector3(0, 0, -1.2)
     bruiser.timer = 0.0
     player.invulnerable = 0.0
+    print("PHASE melee-start")
     for i in range(80): await physics_frame
+    print("PHASE melee-end hp=", player.health)
     check(player.health < hp_before, "bruiser melee windup did not strike")
     check(player.health >= hp_before - ENEMY.MELEE_DAMAGE, "melee damage exceeded tuning")
 
@@ -75,12 +80,14 @@ func run_test() -> void:
     player.invulnerable = 99.0
     drone.global_position = player.global_position + Vector3(0, 0.95, -6.0)
     drone.timer = 0.0
+    print("PHASE drone-start")
     var fired_seen = false
     for i in range(240):
         await physics_frame
         if not get_nodes_in_group("enemy_projectiles").is_empty():
             fired_seen = true
             break
+    print("PHASE drone-fired=", fired_seen)
     check(fired_seen, "drone never fired a bolt in range")
     var bolt = get_nodes_in_group("enemy_projectiles")[0]
     check(bolt.direction.length() > 0.99, "bolt direction not normalized")
@@ -89,11 +96,14 @@ func run_test() -> void:
     check(bolt.global_position.distance_to(bolt_start) > 0.2, "bolt did not travel")
     # A standing player is hit; damage respects the bolt tuning.
     player.invulnerable = 0.0
+    print("PHASE bolt-hit-start")
     var hp2 = player.health
     for i in range(120):
         await physics_frame
         if get_nodes_in_group("enemy_projectiles").is_empty(): break
+    print("PHASE bolt-hit-end hp=", player.health)
     check(player.health <= hp2, "bolt passed through a standing player without damage")
+    print("PHASE dodge-start")
     # Dodge invulnerability makes the same bolt harmless.
     player.health = 100
     player.invulnerable = 0.0
@@ -111,7 +121,9 @@ func run_test() -> void:
         for i in range(120):
             await physics_frame
             if get_nodes_in_group("enemy_projectiles").is_empty(): break
+        print("PHASE dodge-end hp=", player.health)
         check(player.health == 100, "dodge did not avoid the bolt")
+    print("PHASE expiry-start")
     # Bolts expire instead of lingering.
     var orphan = load("res://scripts/enemy_projectile.gd").new()
     scene.add_child(orphan)
@@ -121,8 +133,10 @@ func run_test() -> void:
     for i in range(200):
         await physics_frame
         if orphan.is_queued_for_deletion(): break
+    print("PHASE expiry-end")
     check(expired_seen and orphan.is_queued_for_deletion(), "bolt did not expire")
 
+    print("PHASE separation-start")
     # Enemies separate instead of stacking.
     var e1 = enemy_by_kind("large")
     var e2 = null
@@ -135,6 +149,7 @@ func run_test() -> void:
         var gap = Vector2(e1.global_position.x - e2.global_position.x, e1.global_position.z - e2.global_position.z).length()
         check(gap > 0.5, "enemies did not separate")
 
+    print("PHASE defeat-start")
     # Hit reactions and defeat still work with the new models.
     for e in get_nodes_in_group("enemies"):
         e.take_damage(99)
