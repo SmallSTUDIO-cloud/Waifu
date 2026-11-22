@@ -65,7 +65,6 @@ func run_test() -> void:
     check(player.health == hp_before, "bruiser hit from 6m without windup")
     for i in range(40): await physics_frame
     var chase_end = bruiser.global_position.distance_to(player.global_position)
-    print("BRUISER DEBUG enabled=", bruiser.enabled, " mode=", bruiser.mode, " stagger=", bruiser.stagger, " vel=", bruiser.velocity, " target_valid=", is_instance_valid(bruiser.target), " kind=", bruiser.kind)
     check(chase_end < chase_start - 0.8, "bruiser did not chase (%.2f -> %.2f)" % [chase_start, chase_end])
     check(bruiser.model_root.rotation.x > 0.02, "bruiser did not lean while chasing")
     bruiser.global_position = player.global_position + Vector3(0, 0, -1.2)

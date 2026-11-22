@@ -255,6 +255,9 @@ func _physics_process(delta: float) -> void:
         position.x += velocity.x * delta
         position.z += velocity.z * delta
         model_root.position.y = sin(anim_time * 2.1 + hover_phase) * 0.05
+    else:
+        velocity.y -= 18.0 * delta
+        move_and_slide()
     if not dead:
         # Lean into movement so the static model still reads as alive.
         var lean = 0.16 if move_dir.length_squared() > 0.01 else 0.0
@@ -262,9 +265,6 @@ func _physics_process(delta: float) -> void:
         if stagger > 0.0: lean = -0.20
         model_root.rotation.x = lerpf(model_root.rotation.x, lean, 1.0 - exp(-delta * 8.0))
         model_root.rotation.z = lerpf(model_root.rotation.z, clampf(-velocity.x * 0.03, -0.1, 0.1), 1.0 - exp(-delta * 6.0))
-    else:
-        velocity.y -= 18.0 * delta
-        move_and_slide()
     position.x = clampf(position.x, -8.5, 8.5)
     position.z = clampf(position.z, -8.5, 8.5)
     rotation.x = lerpf(rotation.x, -0.16 if stagger > 0.0 else 0.0, 1.0 - exp(-delta * 14.0))
