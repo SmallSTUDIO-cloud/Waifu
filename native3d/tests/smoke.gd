@@ -47,6 +47,7 @@ func run_test() -> void:
         return
     scene.player.dash_time = 0.0
     enemies[0].global_position = scene.player.global_position + Vector3(0, 0, -1.0)
+    var enemy_hp_before = enemies[0].hp
     scene.player.facing = Vector3(0, 0, -1)
     scene.player.attack()
     for i in range(20): await physics_frame
@@ -70,7 +71,7 @@ func run_test() -> void:
         printerr("FAIL: attack impact effect missing")
         quit(1)
         return
-    if enemies[0].hp >= 3:
+    if enemies[0].hp >= enemy_hp_before:
         printerr("FAIL: attack did not hit nearby enemy")
         quit(1)
         return

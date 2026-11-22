@@ -2,6 +2,7 @@ extends Node3D
 
 const PLAYER_SCRIPT = preload("res://scripts/player.gd")
 const ENEMY_SCRIPT = preload("res://scripts/enemy.gd")
+const ENEMY_PROJECTILE_SCRIPT = preload("res://scripts/enemy_projectile.gd")
 const JOYSTICK_SCRIPT = preload("res://scripts/joystick.gd")
 const COMBAT_VFX = preload("res://scripts/combat_vfx.gd")
 const SETTINGS = preload("res://scripts/settings.gd")
@@ -216,7 +217,7 @@ func _ui() -> void:
     health_label = _make_label("HP  100", 20)
     health_label.position = Vector2(30, 55)
     hud.add_child(health_label)
-    tip_label = _make_label("Drag to orbit  •  Pinch to zoom", 17, Color(0.8, 0.86, 0.9))
+    tip_label = _make_label("Drag to orbit  •  Pinch to zoom  •  Dodge red warnings and bolts", 17, Color(0.8, 0.86, 0.9))
     tip_label.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
     tip_label.offset_left = -170
     tip_label.offset_top = 28
@@ -353,14 +354,21 @@ func start_game() -> void:
     player.enabled = true
     player.control = Vector2.ZERO
     timer = 0.0
+    for projectile in get_tree().get_nodes_in_group("enemy_projectiles"):
+        projectile.queue_free()
     remaining = 4
+    # Balanced mix: two melee bruisers up front, two gun drones behind them.
+    var kinds = ["large", "small", "small", "large"]
     for i in range(4):
         var enemy = ENEMY_SCRIPT.new()
+        enemy.kind = kinds[i]
         enemy.target = player
         add_child(enemy)
-        enemy.position = Vector3((float(i) - 1.5) * 2.0, 0.1, -3.5)
+        var x = (float(i) - 1.5) * 2.0
+        enemy.position = Vector3(x, 0.95 if kinds[i] == "small" else 0.1, -5.2 if kinds[i] == "small" else -3.5)
         enemy.enabled = true
         enemy.defeated.connect(_on_defeated)
+        enemy.fired.connect(_on_enemy_fired)
     menu.visible = false
     hud.visible = true
     playing = true
@@ -544,13 +552,34 @@ func _hit_enemy(enemy: Node3D, damage: int) -> void:
         camera_kick = 1.0 if damage > 1 else 0.65
         # Place sparks just in front of the target surface rather than inside
         # its opaque mesh, so depth testing does not hide the hit feedback.
-        var hit_center = enemy.global_position + Vector3(0, 1.0, 0)
+        var aim_y: float = enemy.get("aim_height") if enemy.get("aim_height") != null else 1.0
+        var hit_center = enemy.global_position + Vector3(0, aim_y, 0)
         var toward_camera = (camera.global_position - hit_center).normalized()
         var effect = _spawn_vfx("impact", hit_center + toward_camera * 0.55, player.combo)
         effect.look_at(camera.global_position, Vector3.UP)
         enemy.take_damage(damage)
 
+func _on_enemy_fired(from: Vector3, direction: Vector3) -> void:
+    var bolt = ENEMY_PROJECTILE_SCRIPT.new()
+    add_child(bolt)
+    bolt.setup(from, direction, player)
+    bolt.hit_player.connect(_on_projectile_hit)
+    bolt.expired.connect(_on_projectile_expired)
+    _spawn_vfx("impact", from, 2)
+
+func _on_projectile_hit(at: Vector3) -> void:
+    var before = player.health
+    player.take_damage(ENEMY_PROJECTILE_SCRIPT.DAMAGE)
+    if player.health < before:
+        camera_kick = maxf(camera_kick, 0.85)
+        _spawn_vfx("impact", at, 2)
+
+func _on_projectile_expired(at: Vector3) -> void:
+    _spawn_vfx("impact", at + Vector3(0, 0.05, 0), 1)
+
 func _on_defeated() -> void:
+    for projectile in get_tree().get_nodes_in_group("enemy_projectiles"):
+        projectile.queue_free()
     remaining -= 1
     _refresh_count()
     if remaining <= 0:
@@ -577,6 +606,8 @@ func _refresh_count() -> void:
 
 func _pause() -> void:
     if not playing: return
+    for projectile in get_tree().get_nodes_in_group("enemy_projectiles"):
+        projectile.queue_free()
     playing = false
     player.enabled = false
     player.control = Vector2.ZERO
