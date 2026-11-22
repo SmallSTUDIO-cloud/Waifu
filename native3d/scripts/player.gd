@@ -101,9 +101,9 @@ func _ready() -> void:
 
 # The Tesla look recolors the same CC0 base mesh (coverage unchanged, modest)
 # and adds a procedural cat-ear headband. Scarlet restores the original look.
-const TESLA_CLOTH = Color(0.045, 0.035, 0.075)
-const TESLA_CLOTH_ACCENT = Color(0.23, 0.10, 0.42)
-const TESLA_HAIR = Color(0.10, 0.045, 0.20)
+const TESLA_CLOTH = Color(0.10, 0.055, 0.19)
+const TESLA_CLOTH_ACCENT = Color(0.38, 0.16, 0.72)
+const TESLA_HAIR = Color(0.16, 0.07, 0.34)
 
 func _prepare_character_materials(node: Node) -> void:
     if node is GeometryInstance3D and node.mesh:
