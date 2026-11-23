@@ -44,6 +44,9 @@ func run_test() -> void:
 		player.model_root.position.x += 0.012 * float(i + 1)
 		await process_frame
 		await process_frame
+	var pose_dir = (player.skeleton.get_bone_global_pose(dbg._bone_idx).basis * Vector3.UP).normalized()
+	print("DBG moddir=", dbg._global_direction, " posedir=", pose_dir, " angle=", rad_to_deg(dbg._global_direction.angle_to(pose_dir)))
+	print("DBG pose_rot_changed=", tip_rest.angle_to(player.skeleton.get_bone_pose_rotation(dbg._bone_idx)))
 	var moved_angle = tip_rest.angle_to(player.skeleton.get_bone_pose_rotation(deepest_hair))
 	max_angle = moved_angle
 	print("DBG moved_angle=", moved_angle, " bone=", player.skeleton.get_bone_name(deepest_hair), " depth=", deepest_depth)
