@@ -10,18 +10,26 @@ func check(condition: bool, message: String) -> void:
 		failures += 1
 		printerr("FAIL wiggle: ", message)
 
+func _swing_of(w, bone_idx: int, skeleton: Skeleton3D) -> float:
+	for entry in w.modifiers:
+		if entry.bone == bone_idx:
+			var pose_dir = (skeleton.get_bone_global_pose_no_override(bone_idx).basis * Vector3.UP).normalized()
+			return entry.mod._global_direction.angle_to(pose_dir)
+	return -1.0
+
 func run_test() -> void:
 	var scene = load("res://main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 	var player = scene.player
 	var w = player.wiggle
+	var skeleton = player.skeleton
 	check(w != null and w.modifiers.size() > 0, "no wiggle modifiers created")
 	var kinds = {}
 	var deepest_hair = -1
 	var deepest_depth = -1
 	for entry in w.modifiers:
-		var bone_name: String = player.skeleton.get_bone_name(entry.bone)
+		var bone_name: String = skeleton.get_bone_name(entry.bone)
 		kinds[entry.kind] = true
 		check("Bust" not in bone_name and not bone_name.begins_with("J_Bip_"), "anatomy bone wiggled: " + bone_name)
 		if entry.kind == "hair" and entry.depth > deepest_depth:
@@ -33,30 +41,24 @@ func run_test() -> void:
 	for entry in w.modifiers:
 		check(entry.mod.influence == 1.0, "modifier influence not 1 at FULL")
 
-	# Acceleration reaction: shove the character sideways; a deep hair bone
-	# must deviate from its rest pose, stay inside the swing limit, and settle.
-	await process_frame
-	var tip_rest = player.skeleton.get_bone_pose_rotation(deepest_hair)
-	var max_angle = 0.0
-	# Accelerate (not constant velocity): wiggle reacts to acceleration.
-	var dbg = w.modifiers[0].mod
+	# Acceleration reaction: shove the character with growing steps; a deep
+	# hair bone must swing away from its animated pose, stay inside the swing
+	# limit, and settle back once the motion stops.
+	var rest_swing = _swing_of(w, deepest_hair, skeleton)
+	check(rest_swing < 0.02, "hair not at rest before motion (%.3f)" % rest_swing)
+	var max_swing = 0.0
 	for i in range(8):
 		player.model_root.position.x += 0.012 * float(i + 1)
 		await process_frame
 		await process_frame
-	var pose_dir = (player.skeleton.get_bone_global_pose(dbg._bone_idx).basis * Vector3.UP).normalized()
-	print("DBG moddir=", dbg._global_direction, " posedir=", pose_dir, " angle=", rad_to_deg(dbg._global_direction.angle_to(pose_dir)))
-	print("DBG pose_rot_changed=", tip_rest.angle_to(player.skeleton.get_bone_pose_rotation(dbg._bone_idx)))
-	var moved_angle = tip_rest.angle_to(player.skeleton.get_bone_pose_rotation(deepest_hair))
-	max_angle = moved_angle
-	print("DBG moved_angle=", moved_angle, " bone=", player.skeleton.get_bone_name(deepest_hair), " depth=", deepest_depth)
-	check(moved_angle > 0.02, "hair tip did not react to acceleration (%.4f)" % moved_angle)
-	check(moved_angle < deg_to_rad(58.0) + 0.05, "hair tip exceeded swing limit (%.2f deg)" % rad_to_deg(moved_angle))
-	for i in range(90):
+		max_swing = maxf(max_swing, _swing_of(w, deepest_hair, skeleton))
+	check(max_swing > 0.02, "hair tip did not react to acceleration (%.4f)" % max_swing)
+	check(max_swing < deg_to_rad(58.0) + 0.05, "hair tip exceeded swing limit (%.2f deg)" % rad_to_deg(max_swing))
+	for i in range(120):
 		await process_frame
-	var settled_angle = tip_rest.angle_to(player.skeleton.get_bone_pose_rotation(deepest_hair))
-	check(settled_angle < max_angle, "hair did not settle after motion")
-	check(settled_angle < deg_to_rad(58.0) + 0.05, "hair unbounded after settle")
+	var settled = _swing_of(w, deepest_hair, skeleton)
+	check(settled < max_swing, "hair did not settle after motion (%.4f vs %.4f)" % [settled, max_swing])
+	check(settled < deg_to_rad(58.0) + 0.05, "hair unbounded after settle")
 
 	# Quality routing: FULL drives wiggle, REDUCED/OFF hand back to springs.
 	player.set_physics_quality(1)
