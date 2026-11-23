@@ -74,7 +74,7 @@ func _ready() -> void:
     camera.look_at(Vector3(0, 1, 0))
     quality_settings = SETTINGS.new()
     quality_settings.load_settings()
-    player.secondary_motion.set_quality(quality_settings.physics)
+    player.set_physics_quality(quality_settings.physics)
     _ui()
     _update_camera(1.0)
     var args = OS.get_cmdline_user_args()
@@ -342,7 +342,7 @@ func _refresh_quality_labels() -> void:
 
 func _cycle_physics() -> void:
     quality_settings.physics = (quality_settings.physics + 1) % 3
-    player.secondary_motion.set_quality(quality_settings.physics)
+    player.set_physics_quality(quality_settings.physics)
     quality_settings.save_settings()
     _refresh_quality_labels()
 
@@ -372,7 +372,7 @@ func start_game() -> void:
     player.attack_cooldown = 0.0
     player.attack_buffered = false
     if player.sword_trail: player.sword_trail.clear_trail()
-    if player.secondary_motion: player.secondary_motion.reset()
+    player.reset_secondary()
     player.combo = 0
     player.combo_timeout = 0.0
     player.dash_time = 0.0

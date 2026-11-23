@@ -36,8 +36,9 @@ jobs:
           timeout 180 godot --headless --path native3d --script res://tests/secondary_physics.gd 2>&1 | tee /tmp/secondary-physics.log
           timeout 180 godot --headless --path native3d --script res://tests/quality_settings.gd 2>&1 | tee /tmp/quality-settings.log
           timeout 180 godot --headless --path native3d --script res://tests/touch_camera.gd 2>&1 | tee /tmp/touch-camera.log
+          timeout 180 godot --headless --path native3d --script res://tests/wiggle_physics.gd 2>&1 | tee /tmp/wiggle.log
           timeout 180 godot --headless --path native3d --script res://tests/enemy_combat.gd 2>&1 | tee /tmp/enemy-combat.log
-          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/enemy-combat.log | grep -v 'Parameter "t" is null' || true)
+          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/wiggle.log /tmp/enemy-combat.log | grep -v 'Parameter "t" is null' || true)
           if [ -n "$errors" ]; then
             echo "::error::$errors"
             exit 1
@@ -107,7 +108,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/enemy-combat.log /tmp/render.log 2>/dev/null > /tmp/diagnostics.txt || true
+          cat /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/wiggle.log /tmp/enemy-combat.log /tmp/render.log 2>/dev/null > /tmp/diagnostics.txt || true
           python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/diagnostics.txt","rb").read()).decode(),"encoding":"base64"}))' > /tmp/diagnostics.json
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/diagnostics.json --jq .sha)
           echo "::warning title=Diagnostics::$sha"

@@ -7,6 +7,7 @@ signal attack_swing(stage: int)
 const AVATAR = preload("res://assets/avatar.glb")
 const SECONDARY = preload("res://scripts/secondary_motion.gd")
 const SWORD_TRAIL = preload("res://scripts/sword_trail.gd")
+const WIGGLE = preload("res://scripts/wiggle_physics.gd")
 const AUTHORED_MOTION = preload("res://scripts/authored_motion.gd")
 const SPEED: float = 2.8
 const DASH_SPEED: float = 10.0
@@ -29,6 +30,10 @@ var skeleton: Skeleton3D
 var bone_rest: Dictionary = {}
 var bone_indices: Dictionary = {}
 var secondary_motion: RefCounted
+var wiggle: RefCounted
+var physics_quality: int = 2
+var wiggle: RefCounted
+var physics_quality: int = 2
 var visual_time: float = 0.0
 var speed_ratio: float = 0.0
 var enabled: bool = false
@@ -77,7 +82,12 @@ func _ready() -> void:
             bone_indices[bone_name] = i
         secondary_motion = SECONDARY.new()
         secondary_motion.setup(skeleton)
-        secondary_motion.set_quality(int(ProjectSettings.get_setting("secondary_motion/quality", 2)))
+        physics_quality = clampi(int(ProjectSettings.get_setting("secondary_motion/quality", 2)), 0, 2)
+        secondary_motion.set_quality(physics_quality)
+        # Real jiggle physics (WiggleBone addon) drives hair/skirt/sleeve at FULL.
+        wiggle = WIGGLE.new()
+        wiggle.setup(skeleton)
+        wiggle.set_active(physics_quality == 2)
         _attach_sword()
         # Profiling can disable the entire shadow instance, allowing a device
         # comparison of both memory and rendering costs. Normal builds keep it.
@@ -142,6 +152,18 @@ func _show_dodge_shadow() -> void:
     if profile_secondary:
         profile_shadow_us += Time.get_ticks_usec() - shadow_started
         profile_shadow_count += 1
+
+func set_physics_quality(level: int) -> void:
+    physics_quality = clampi(level, 0, 2)
+    secondary_motion.set_quality(physics_quality)
+    if wiggle:
+        wiggle.set_active(physics_quality == 2)
+
+func reset_secondary() -> void:
+    if secondary_motion:
+        secondary_motion.reset()
+    if wiggle:
+        wiggle.reset_all()
 
 func _attach_sword() -> void:
     var hand = skeleton.find_bone("J_Bip_R_Hand")
@@ -462,7 +484,7 @@ func _animate(delta: float) -> void:
         var pulse = 0.03 * sin(visual_time * 6.0)
         aura_material.albedo_color.a = 0.10 + pulse + flare
         aura_mesh.scale = Vector3(1.0 + 0.05 * sin(visual_time * 6.0) + 0.35 * flare, 1.0, 1.0 + 0.05 * sin(visual_time * 6.0) + 0.35 * flare)
-    if secondary_motion:
+    if secondary_motion and physics_quality < 2:
         if profile_secondary:
             var started = Time.get_ticks_usec()
             secondary_motion.update(delta)
