@@ -540,7 +540,6 @@ func _input(event: InputEvent) -> void:
         if not camera_touches.has(event.index):
             return
         var previous: Vector2 = camera_touches[event.index]
-        var previous: Vector2 = camera_touches[event.index]
         camera_touches[event.index] = event.position
         if camera_touches.size() == 1:
             # Angles track screen fractions rather than raw device pixels.
