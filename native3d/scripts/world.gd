@@ -37,6 +37,10 @@ var camera_distance: float = CAMERA_DEFAULT_DISTANCE
 var camera_touches: Dictionary = {}
 var camera_pinch_distance: float = 0.0
 var camera_exclusions: Array[Control] = []
+var control_touches: Dictionary = {}
+var attack_button: Button
+var dodge_button: Button
+var pause_button: Button
 var profile_enabled: bool = false
 var profile_time: float = 0.0
 var profile_last_us: int = 0
@@ -204,6 +208,40 @@ func _button(text: String, size: Vector2) -> Button:
     button.add_theme_stylebox_override("pressed", pressed)
     return button
 
+func _icon_button(icon_path: String, diameter: float) -> Button:
+    # Round glass HUD button: no text, icon only. Input is routed centrally in
+    # _input so the buttons work while the joystick finger is held.
+    var button = Button.new()
+    button.text = ""
+    button.mouse_filter = Control.MOUSE_FILTER_IGNORE
+    button.custom_minimum_size = Vector2(diameter, diameter)
+    button.icon = load(icon_path)
+    button.expand_icon = true
+    button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
+    button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+    var normal = StyleBoxTexture.new()
+    normal.texture = load("res://assets/ui/glass.png")
+    var hover = normal.duplicate()
+    hover.modulate_color = Color(1.15, 1.15, 1.2, 1.0)
+    var pressed = StyleBoxTexture.new()
+    pressed.texture = load("res://assets/ui/glass_pressed.png")
+    button.add_theme_stylebox_override("normal", normal)
+    button.add_theme_stylebox_override("hover", hover)
+    button.add_theme_stylebox_override("pressed", pressed)
+    button.add_theme_stylebox_override("disabled", normal)
+    return button
+
+func _control_at(pos: Vector2) -> Control:
+    for control in camera_exclusions:
+        if control != joystick and control.is_visible_in_tree() and control.get_global_rect().has_point(pos):
+            return control
+    return null
+
+func _control_pressed(control: Control) -> void:
+    if control == attack_button: _attack()
+    elif control == dodge_button: _dodge()
+    elif control == pause_button: _pause()
+
 func _ui() -> void:
     var layer = CanvasLayer.new()
     add_child(layer)
@@ -232,31 +270,28 @@ func _ui() -> void:
     joystick.offset_top = -196
     joystick.offset_bottom = -36
     hud.add_child(joystick)
-    var attack = _button("ATTACK", Vector2(130, 100))
-    attack.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-    attack.offset_left = -166
-    attack.offset_right = -36
-    attack.offset_top = -140
-    attack.offset_bottom = -40
-    hud.add_child(attack)
-    attack.button_down.connect(_attack)
-    var dodge = _button("DODGE", Vector2(110, 76))
-    dodge.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-    dodge.offset_left = -298
-    dodge.offset_right = -188
-    dodge.offset_top = -118
-    dodge.offset_bottom = -42
-    hud.add_child(dodge)
-    dodge.button_down.connect(_dodge)
-    var pause_button = _button("II", Vector2(64, 56))
+    attack_button = _icon_button("res://assets/ui/icon_attack.png", 108.0)
+    attack_button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+    attack_button.offset_left = -148
+    attack_button.offset_right = -40
+    attack_button.offset_top = -148
+    attack_button.offset_bottom = -40
+    hud.add_child(attack_button)
+    dodge_button = _icon_button("res://assets/ui/icon_dodge.png", 88.0)
+    dodge_button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+    dodge_button.offset_left = -256
+    dodge_button.offset_right = -168
+    dodge_button.offset_top = -120
+    dodge_button.offset_bottom = -32
+    hud.add_child(dodge_button)
+    pause_button = _icon_button("res://assets/ui/icon_pause.png", 64.0)
     pause_button.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
     pause_button.offset_left = -92
     pause_button.offset_right = -28
     pause_button.offset_top = 24
-    pause_button.offset_bottom = 80
+    pause_button.offset_bottom = 88
     hud.add_child(pause_button)
-    pause_button.pressed.connect(_pause)
-    camera_exclusions = [joystick, attack, dodge, pause_button]
+    camera_exclusions = [joystick, attack_button, dodge_button, pause_button]
     hud.visible = false
     menu = Control.new()
     menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -465,6 +500,7 @@ func _update_camera(delta: float) -> void:
 
 func _clear_camera_touches() -> void:
     camera_touches.clear()
+    control_touches.clear()
     camera_pinch_distance = 0.0
 
 func _notification(what: int) -> void:
@@ -477,6 +513,11 @@ func _input(event: InputEvent) -> void:
         return
     if event is InputEventScreenTouch:
         if event.pressed:
+            var control = _control_at(event.position)
+            if control != null:
+                control_touches[event.index] = control
+                _control_pressed(control)
+                return
             if camera_touches.has(event.index) or camera_touches.size() >= 2:
                 return
             for control in camera_exclusions:
@@ -486,10 +527,19 @@ func _input(event: InputEvent) -> void:
             if camera_touches.size() == 2:
                 var points = camera_touches.values()
                 camera_pinch_distance = points[0].distance_to(points[1])
-        elif camera_touches.has(event.index):
-            camera_touches.erase(event.index)
-            camera_pinch_distance = 0.0
-    elif event is InputEventScreenDrag and camera_touches.has(event.index):
+        else:
+            if control_touches.has(event.index):
+                control_touches.erase(event.index)
+                return
+            if camera_touches.has(event.index):
+                camera_touches.erase(event.index)
+                camera_pinch_distance = 0.0
+    elif event is InputEventScreenDrag:
+        if control_touches.has(event.index):
+            return
+        if not camera_touches.has(event.index):
+            return
+        var previous: Vector2 = camera_touches[event.index]
         var previous: Vector2 = camera_touches[event.index]
         camera_touches[event.index] = event.position
         if camera_touches.size() == 1:
@@ -505,6 +555,14 @@ func _input(event: InputEvent) -> void:
             if distance >= 8.0 and camera_pinch_distance >= 8.0:
                 camera_distance = clampf(camera_distance * camera_pinch_distance / distance, CAMERA_MIN_DISTANCE, CAMERA_MAX_DISTANCE)
             camera_pinch_distance = distance
+
+func _unhandled_input(event: InputEvent) -> void:
+    if not playing or preview_mode != "":
+        return
+    if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+        var control = _control_at(event.position)
+        if control != null:
+            _control_pressed(control)
 
 func _unhandled_key_input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and not event.echo:

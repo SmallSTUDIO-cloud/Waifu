@@ -11,11 +11,15 @@ func _ready() -> void:
     queue_redraw()
 
 func _draw() -> void:
+    # Glass look: translucent disc, bright rim, top highlight, frosted knob.
     var center: Vector2 = size * 0.5
-    draw_circle(center, RADIUS, Color(0.04, 0.08, 0.12, 0.55))
-    draw_arc(center, RADIUS, 0.0, TAU, 64, Color(0.9, 0.95, 1.0, 0.38), 2.0)
-    draw_circle(center + knob * RADIUS * 0.65, 27.0, Color(0.8, 0.88, 0.92, 0.35))
-    draw_arc(center + knob * RADIUS * 0.65, 27.0, 0.0, TAU, 32, Color(0.95, 0.96, 1.0, 0.6), 2.0)
+    draw_circle(center, RADIUS, Color(1, 1, 1, 0.10))
+    draw_arc(center, RADIUS, 0.0, TAU, 64, Color(1, 1, 1, 0.38), 2.0)
+    draw_arc(center, RADIUS - 9.0, PI * 1.02, PI * 1.62, 32, Color(1, 1, 1, 0.28), 7.0)
+    var knob_pos = center + knob * RADIUS * 0.65
+    draw_circle(knob_pos, 30.0, Color(1, 1, 1, 0.25))
+    draw_arc(knob_pos, 30.0, 0.0, TAU, 32, Color(1, 1, 1, 0.60), 2.0)
+    draw_arc(knob_pos, 23.0, PI * 1.05, PI * 1.7, 24, Color(1, 1, 1, 0.45), 5.0)
 
 func _input(event: InputEvent) -> void:
     if not visible or not is_inside_tree():

@@ -38,7 +38,8 @@ func run_test() -> void:
     for enemy in get_nodes_in_group("enemies"): enemy.enabled = false
 
     # Controls claim touches before camera gestures, independently of dispatch order.
-    for control in scene.camera_exclusions:
+    # (pause_button is excluded here because routing a press on it pauses the game.)
+    for control in [scene.joystick, scene.attack_button, scene.dodge_button]:
         var pos = control.get_global_rect().get_center()
         scene._input(touch(11, true, pos))
         check(scene.camera_touches.is_empty(), "HUD control claimed by camera")
@@ -95,6 +96,22 @@ func run_test() -> void:
     route_input(scene, touch(8, false, center))
     await process_frame
     check(scene.joystick.touch_index == -1 and scene.camera_touches.is_empty(), "release cleanup")
+
+    # HUD buttons must work while the joystick finger is held (multi-touch).
+    scene.player.attack_cooldown = 0.0
+    scene.player.attack_timer = 0.0
+    scene.player.dash_time = 0.0
+    route_input(scene, touch(7, true, stick_center))
+    route_input(scene, drag(7, stick_center + Vector2(0, -45)))
+    var atk_center: Vector2 = scene.attack_button.get_global_rect().get_center()
+    route_input(scene, touch(9, true, atk_center))
+    check(scene.control_touches.get(9) == scene.attack_button, "attack button claimed its touch")
+    check(scene.player.attack_timer > 0.0, "attack fired while joystick held")
+    check(scene.joystick.touch_index == 7 and scene.joystick.direction.y < -0.1, "joystick still owned while button pressed")
+    check(scene.camera_touches.is_empty(), "button touch not claimed by camera")
+    route_input(scene, touch(9, false, atk_center))
+    check(not scene.control_touches.has(9), "button touch released")
+    route_input(scene, touch(7, false, stick_center))
 
     # Forward and dodge follow the displayed camera, not world north.
     scene.camera.global_position = scene.player.global_position + Vector3(5, 3, 0)
