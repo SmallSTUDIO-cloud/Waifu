@@ -39,10 +39,14 @@ func run_test() -> void:
 	var tip_rest = player.skeleton.get_bone_global_pose(deepest_hair).basis
 	var max_angle = 0.0
 	# Accelerate (not constant velocity): wiggle reacts to acceleration.
+	var dbg = w.modifiers[0].mod
+	print("DBG bone_idx=", dbg._bone_idx, " influence=", dbg.influence, " cbmode=", player.skeleton.modifier_callback_mode_process, " active=", w.active, " nmods=", w.modifiers.size())
 	for i in range(8):
 		player.model_root.position.x += 0.012 * float(i + 1)
 		await process_frame
+	print("DBG after move: global_dir=", dbg._global_direction, " pos=", dbg._global_position)
 		await process_frame
+	print("DBG frame2: global_dir=", dbg._global_direction)
 	var moved_angle = tip_rest.get_rotation_quaternion().angle_to(player.skeleton.get_bone_global_pose(deepest_hair).basis.get_rotation_quaternion())
 	max_angle = moved_angle
 	check(moved_angle > 0.02, "hair tip did not react to acceleration (%.4f)" % moved_angle)
