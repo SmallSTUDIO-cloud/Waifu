@@ -48,7 +48,6 @@ var quality_settings: RefCounted
 var menu_action: Button
 var physics_button: Button
 var effects_button: Button
-var character_button: Button
 
 func _ready() -> void:
     _environment()
@@ -72,17 +71,12 @@ func _ready() -> void:
     quality_settings = SETTINGS.new()
     quality_settings.load_settings()
     player.secondary_motion.set_quality(quality_settings.physics)
-    player.apply_character(quality_settings.character)
     _ui()
     _update_camera(1.0)
     var args = OS.get_cmdline_user_args()
     if player.motion_driver:
         player.motion_driver.use_formal_walk = not "--legacy-walk" in args
         player.motion_driver.use_sword_dash = not "--legacy-dash" in args
-    if "--character-tesla" in args:
-        quality_settings.character = "tesla"
-        player.apply_character("tesla")
-        _refresh_quality_labels()
     if "--smoke-play" in args or "--preview-move" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args or "--preview-grip" in args:
         start_game()
     for side in ["front", "side", "rear"]:
@@ -299,29 +293,17 @@ func _show_menu(title: String, subtitle: String, action: String) -> void:
     column.add_child(quality_row)
     physics_button = _button("", Vector2(285, 52))
     effects_button = _button("", Vector2(285, 52))
-    character_button = _button("", Vector2(285, 52))
     physics_button.add_theme_font_size_override("font_size", 16)
     effects_button.add_theme_font_size_override("font_size", 16)
-    character_button.add_theme_font_size_override("font_size", 16)
     quality_row.add_child(physics_button)
     quality_row.add_child(effects_button)
-    quality_row.add_child(character_button)
     physics_button.pressed.connect(_cycle_physics)
     effects_button.pressed.connect(_cycle_effects)
-    character_button.pressed.connect(_cycle_character)
     _refresh_quality_labels()
 
 func _refresh_quality_labels() -> void:
     physics_button.text = "PHYSICS: " + ["OFF", "REDUCED", "FULL"][quality_settings.physics]
     effects_button.text = "VFX: " + ["REDUCED", "FULL"][quality_settings.effects]
-    character_button.text = "CHARACTER: " + quality_settings.character.to_upper()
-
-func _cycle_character() -> void:
-    var names = SETTINGS.CHARACTERS
-    quality_settings.character = names[(names.find(quality_settings.character) + 1) % names.size()]
-    player.apply_character(quality_settings.character)
-    quality_settings.save_settings()
-    _refresh_quality_labels()
 
 func _cycle_physics() -> void:
     quality_settings.physics = (quality_settings.physics + 1) % 3
@@ -356,7 +338,6 @@ func start_game() -> void:
     player.attack_buffered = false
     if player.sword_trail: player.sword_trail.clear_trail()
     if player.secondary_motion: player.secondary_motion.reset()
-    player.apply_character(quality_settings.character)
     player.combo = 0
     player.combo_timeout = 0.0
     player.dash_time = 0.0

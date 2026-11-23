@@ -135,7 +135,7 @@ jobs:
           ## Test build for phone playtesting
           - Signed with a CI test keystore (sideload; not a Play Store key).
           - arm64-v8a + x86_64. Enable "Install unknown apps" for your browser or file manager.
-          - Includes: touch camera (drag to orbit, pinch to zoom), enemy robots (bruisers + bolt drones), CHARACTER selector (Scarlet / Tesla) on the menu.
+          - Includes: touch camera (drag to orbit, pinch to zoom), enemy robots (bruisers + bolt drones).
           - Verified on the Android emulator only (software rendering so far); please report FPS on your device.
           - Source commit: ${GITHUB_SHA}
           NOTES

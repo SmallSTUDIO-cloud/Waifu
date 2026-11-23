@@ -40,10 +40,6 @@ var dash_direction: Vector3 = Vector3.FORWARD
 var sword_grip: Node3D
 var sword_trail: MeshInstance3D
 var motion_driver: RefCounted
-var character_name: String = "scarlet"
-var tinted_materials: Array[BaseMaterial3D] = []
-var original_albedos: Array[Color] = []
-var headband: Node3D
 var shadow_root: Node3D
 var shadow_skeleton: Skeleton3D
 var shadow_material: StandardMaterial3D
@@ -71,8 +67,6 @@ func _ready() -> void:
     var model = AVATAR.instantiate()
     model_root.add_child(model)
     skeleton = _find_skeleton(model)
-    _prepare_character_materials(model)
-    _build_headband()
     if skeleton:
         for i in range(skeleton.get_bone_count()):
             var bone_name: String = skeleton.get_bone_name(i)
@@ -98,110 +92,6 @@ func _ready() -> void:
             if candidate.source: candidate.source.queue_free()
             push_warning("Authored motion unavailable; using procedural fallback")
 
-
-# The Tesla look recolors the same CC0 base mesh (coverage unchanged, modest)
-# and adds a procedural cat-ear headband. Scarlet restores the original look.
-const TESLA_CLOTH = Color(0.10, 0.055, 0.19)
-const TESLA_CLOTH_ACCENT = Color(0.38, 0.16, 0.72)
-const TESLA_HAIR = Color(0.16, 0.07, 0.34)
-
-func _prepare_character_materials(node: Node) -> void:
-    if node is GeometryInstance3D and node.mesh:
-        var source = node.material_override
-        if source == null and node.mesh.get_surface_count() > 0:
-            source = node.mesh.surface_get_material(0)
-        if source is BaseMaterial3D:
-            var material: BaseMaterial3D = source.duplicate()
-            node.material_override = material
-            tinted_materials.append(material)
-            original_albedos.append(material.albedo_color)
-    for child in node.get_children():
-        _prepare_character_materials(child)
-
-func apply_character(name: String) -> void:
-    character_name = "tesla" if name == "tesla" else "scarlet"
-    var tesla = character_name == "tesla"
-    for i in range(tinted_materials.size()):
-        var material = tinted_materials[i]
-        var original = original_albedos[i]
-        if not tesla:
-            material.albedo_color = original
-            continue
-        # Luminance-based mapping: light cloth becomes the dark suit with
-        # purple trim feel, dark hair becomes deep violet. Skin/eyes stay.
-        var lum = original.get_luminance()
-        if lum > 0.65:
-            material.albedo_color = TESLA_CLOTH
-        elif lum > 0.38:
-            material.albedo_color = TESLA_CLOTH_ACCENT
-        elif lum < 0.22:
-            material.albedo_color = TESLA_HAIR
-    if headband: headband.visible = tesla
-
-func _build_headband() -> void:
-    var head = skeleton.find_bone("J_Bip_C_Head") if skeleton else -1
-    var anchor: Node3D
-    if head >= 0:
-        var attachment = BoneAttachment3D.new()
-        attachment.bone_name = "J_Bip_C_Head"
-        skeleton.add_child(attachment)
-        anchor = attachment
-    else:
-        anchor = model_root
-    headband = Node3D.new()
-    headband.name = "TeslaHeadband"
-    anchor.add_child(headband)
-    var black = _headband_material(Color(0.05, 0.04, 0.08))
-    var white = _headband_material(Color(0.92, 0.92, 0.95))
-    var purple = _headband_material(Color(0.35, 0.14, 0.65))
-    # Band across the top of the head.
-    var band = MeshInstance3D.new()
-    var band_mesh = BoxMesh.new()
-    band_mesh.size = Vector3(0.30, 0.035, 0.06)
-    band.mesh = band_mesh
-    band.material_override = black
-    band.position = Vector3(0, 0.16, -0.01)
-    headband.add_child(band)
-    # Cat ears: flattened cones with white inner faces.
-    for side in [-1, 1]:
-        var ear = MeshInstance3D.new()
-        var ear_mesh = CylinderMesh.new()
-        ear_mesh.top_radius = 0.012
-        ear_mesh.bottom_radius = 0.055
-        ear_mesh.height = 0.11
-        ear.mesh = ear_mesh
-        ear.material_override = black
-        ear.position = Vector3(side * 0.085, 0.235, -0.005)
-        ear.rotation.z = -side * 0.28
-        headband.add_child(ear)
-        var inner = MeshInstance3D.new()
-        var inner_mesh = CylinderMesh.new()
-        inner_mesh.top_radius = 0.006
-        inner_mesh.bottom_radius = 0.032
-        inner_mesh.height = 0.075
-        inner.mesh = inner_mesh
-        inner.material_override = white
-        inner.position = Vector3(side * 0.072, 0.228, 0.012)
-        inner.rotation.z = -side * 0.28
-        headband.add_child(inner)
-    # Small purple bow on one side.
-    for side in [-1, 1]:
-        var loop = MeshInstance3D.new()
-        var loop_mesh = BoxMesh.new()
-        loop_mesh.size = Vector3(0.045, 0.02, 0.012)
-        loop.mesh = loop_mesh
-        loop.material_override = purple
-        loop.position = Vector3(-0.115 + side * 0.035, 0.165, 0.005)
-        loop.rotation.z = side * 0.5
-        headband.add_child(loop)
-    headband.visible = false
-
-func _headband_material(color: Color) -> StandardMaterial3D:
-    var material = StandardMaterial3D.new()
-    material.albedo_color = color
-    material.roughness = 0.55
-    material.metallic = 0.15
-    return material
 
 func _find_skeleton(node: Node) -> Skeleton3D:
     if node is Skeleton3D:
