@@ -1,6 +1,6 @@
 name: Native Android emulator smoke
 # Debug-only quality and shadow comparison; no build artifacts are published.
-# Re-run note: touched to validate the robot-enemy build on the emulator.
+# Re-run note: touched to validate the robot-enemy build on the emulator; again for sword/physics build.
 on:
   push:
     paths:

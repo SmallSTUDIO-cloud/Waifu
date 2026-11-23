@@ -29,6 +29,12 @@ The deploy and pause menus offer persistent physics (off/reduced/full) and VFX (
 
 During combat, drag an open part of the screen with one finger to orbit around the character. Pinch with two fingers to zoom in or out. The movement joystick, attack, dodge and pause buttons keep their own touches; movement and dodge direction are relative to the current view. Camera angle and zoom reset when starting a new encounter and remain unchanged when pausing and resuming. Touch behavior still needs physical-device testing.
 
+### Sword and aura
+The sword is built in code at runtime (`player.gd::_attach_sword`): leather-wrapped grip with wrap rings, gold pommel and cross-guard, a tapered fullered blade with glowing purple power edges, and an additive hex aura shell that breathes at idle and flares during swings. While walking, the grip tilts the blade outward/down so the swing clears the chest scarf; the pose relaxes back at idle. The swing trail (`sword_trail.gd`) samples the real posed blade.
+
+### Secondary physics
+Hair, skirt and sleeve chains are driven by angular springs after authored animation (`secondary_motion.gd`), with per-chain depth falloff (stiff roots, whip-like tips), skirt tips constrained against leg capsules, a faint post-spring idle sway, and quality tiers 0/1/2 for mobile. Solver cost stays bounded (substeps capped at 60 Hz, acceleration clamped) and is profiled on the emulator via `SECONDARY_PROFILE`.
+
 ### Enemy robots
 
 Encounters spawn four CC0 Polygonal Mind robots (one model, role tints): two dark **bruisers** that chase and telegraphed melee-slam (12 damage, red ground ring), and two hovering **gun drones** that hold a 4–8 m band, show a red sight line while charging, and fire dodgeable energy bolts (10 damage, 8.5 m/s). Drones headbutt (8 damage) if you get too close. Robots separate so they do not stack, flash and recoil when hit, and fall over when destroyed. Balance constants are bounded in `enemy.gd`/`enemy_projectile.gd` and covered by `tests/enemy_combat.gd`. Physical-device gameplay feel still needs on-device testing.
