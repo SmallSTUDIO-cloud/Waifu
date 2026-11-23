@@ -38,8 +38,9 @@ func run_test() -> void:
 	await process_frame
 	var tip_rest = player.skeleton.get_bone_global_pose(deepest_hair).basis
 	var max_angle = 0.0
-	for i in range(6):
-		player.model_root.position.x += 0.06
+	# Accelerate (not constant velocity): wiggle reacts to acceleration.
+	for i in range(8):
+		player.model_root.position.x += 0.012 * float(i + 1)
 		await process_frame
 		await process_frame
 	var moved_angle = tip_rest.get_rotation_quaternion().angle_to(player.skeleton.get_bone_global_pose(deepest_hair).basis.get_rotation_quaternion())
