@@ -513,10 +513,10 @@ func _input(event: InputEvent) -> void:
         return
     if event is InputEventScreenTouch:
         if event.pressed:
-            var control = _control_at(event.position)
-            if control != null:
-                control_touches[event.index] = control
-                _control_pressed(control)
+            var owner = _control_at(event.position)
+            if owner != null:
+                control_touches[event.index] = owner
+                _control_pressed(owner)
                 return
             if camera_touches.has(event.index) or camera_touches.size() >= 2:
                 return
