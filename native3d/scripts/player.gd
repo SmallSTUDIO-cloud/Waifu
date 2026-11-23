@@ -32,8 +32,6 @@ var bone_indices: Dictionary = {}
 var secondary_motion: RefCounted
 var wiggle: RefCounted
 var physics_quality: int = 2
-var wiggle: RefCounted
-var physics_quality: int = 2
 var visual_time: float = 0.0
 var speed_ratio: float = 0.0
 var enabled: bool = false
