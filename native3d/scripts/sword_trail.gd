@@ -24,7 +24,7 @@ func update_trail(delta: float, grip: Node3D, active: bool) -> void:
     while not samples.is_empty() and samples[0].age >= SAMPLE_LIFE:
         samples.pop_front()
     if active and is_instance_valid(grip):
-        samples.append({"base": grip.to_global(Vector3(0, -0.10, 0)), "tip": grip.to_global(Vector3(0, -0.90, 0)), "age": 0.0})
+        samples.append({"base": grip.to_global(Vector3(0, -0.02, 0)), "tip": grip.to_global(Vector3(0, -0.86, 0)), "age": 0.0})
         while samples.size() > MAX_SAMPLES:
             samples.pop_front()
     ribbon.clear_surfaces()

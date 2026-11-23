@@ -12,6 +12,7 @@ var rig: Skeleton3D
 var joints: Array[Dictionary] = []
 var leg_pairs: Array = []
 var leg_segments: Array = []
+var time: float = 0.0
 
 func setup(skeleton: Skeleton3D) -> void:
     rig = skeleton
@@ -44,10 +45,21 @@ func setup(skeleton: Skeleton3D) -> void:
                 child = c
                 break
         var limit = 0.17 if kind == "hair" else (0.09 if kind == "skirt" else 0.075)
+        # Chain depth: roots stay stiff, tips get looser, which gives the
+        # whip-like falloff of real hair/cloth instead of a rigid chain.
+        var depth = 0
+        var walker = parent
+        while walker >= 0:
+            var walker_name = rig.get_bone_name(walker)
+            var same = (walker_name.begins_with("HairJoint") if kind == "hair" else walker_name.begins_with("J_Sec_"))
+            if not same: break
+            depth += 1
+            walker = rig.get_bone_parent(walker)
+        var depth_frac = clampf(float(depth) / 4.0, 0.0, 1.0)
         # Stable per-chain variation without random noise or frame-dependent jitter.
         var variation = 0.93 + 0.035 * float(index % 5)
-        var stiffness = (28.0 if kind == "hair" else 38.0) * variation
-        var damping = (9.0 if kind == "hair" else 11.0) * variation
+        var stiffness = (28.0 if kind == "hair" else 38.0) * variation * (1.0 - 0.30 * depth_frac)
+        var damping = (9.0 if kind == "hair" else 11.0) * variation * (1.0 - 0.18 * depth_frac)
         var base = rig.get_bone_pose_rotation(index)
         joints.append({"bone": index, "parent": parent, "child": child, "kind": kind,
             "root": root_joint, "weight": 1.0, "rest": base, "base": base, "last": base, "limit": limit,
@@ -140,6 +152,7 @@ func _constrain_skirt(joint: Dictionary, base: Quaternion, proposed: Quaternion)
 
 func update(delta: float) -> void:
     if delta <= 0.0 or not rig or (quality == 0 and quality_fade_remaining <= 0.0): return
+    time += delta
     var sample_dt = clampf(delta, 0.001, MAX_DT)
     if quality > 0 or quality_fade_remaining > 0.0: _cache_leg_segments()
     quality_fade_remaining = maxf(0.0, quality_fade_remaining - delta)
@@ -180,7 +193,9 @@ func update(delta: float) -> void:
         var gravity_change: Vector3 = gravity_local - joint.gravity_rest
         var limit: float = joint.limit
         var sensitivity: float = (0.006 if joint.kind == "hair" else 0.0035) * joint.variation
-        var target_x = clampf(-local_accel.z * sensitivity - local_velocity.z * 0.009 - local_accel.y * sensitivity * 0.15 + gravity_change.z * 0.025, -limit, limit)
+        # A faint idle sway keeps hair roots alive even when standing still.
+        var sway = sin(time * 1.9 + float(joint.bone % 7) * 0.9) * 0.010 if (joint.kind == "hair" and joint.root) else 0.0
+        var target_x = clampf(-local_accel.z * sensitivity - local_velocity.z * 0.009 - local_accel.y * sensitivity * 0.15 + gravity_change.z * 0.025 + sway, -limit, limit)
         var target_z = clampf(local_accel.x * sensitivity + local_velocity.x * 0.009 - gravity_change.x * 0.025, -limit, limit)
         var remaining = minf(delta, MAX_DT)
         while remaining > 0.000001:

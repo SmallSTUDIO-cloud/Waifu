@@ -81,5 +81,38 @@ func run_test() -> void:
     if active_effects().size() > 12:
         fail("transient VFX budget exceeded")
         return
+    # Detailed sword: aura shell must exist and pulse with the attack state.
+    if player.aura_material == null or player.aura_mesh == null:
+        fail("sword aura missing")
+        return
+    var idle_alpha = player.aura_material.albedo_color.a
+    player.attack_timer = player.ATTACK_DURATION * 0.5
+    player._animate(1.0 / 60.0)
+    if player.aura_material.albedo_color.a <= idle_alpha:
+        fail("aura did not flare during attack")
+        return
+    player.attack_timer = 0.0
+    # Walking must tilt the blade outward, away from the scarf; idle relaxes.
+    var base_z = player.grip_base_rotation.z
+    player.speed_ratio = 1.0
+    player._animate(1.0 / 60.0)
+    if player.sword_grip.rotation_degrees.z < base_z + 4.0:
+        fail("sword does not tilt outward while walking")
+        return
+    player.speed_ratio = 0.0
+    for i in range(40): player._animate(1.0 / 60.0)
+    if absf(player.sword_grip.rotation_degrees.z - base_z) > 1.5:
+        fail("sword pose did not relax at idle")
+        return
+    # Physics: chain tips must be looser than roots (whip falloff).
+    var root_stiff = -1.0
+    var tip_stiff = -1.0
+    for joint in sim.joints:
+        if joint.kind != "hair": continue
+        if joint.root and (root_stiff < 0.0 or joint.stiffness > root_stiff): root_stiff = joint.stiffness
+        if not joint.root and (tip_stiff < 0.0 or joint.stiffness < tip_stiff): tip_stiff = joint.stiffness
+    if root_stiff > 0.0 and tip_stiff > 0.0 and tip_stiff >= root_stiff:
+        fail("hair chain lacks stiffness falloff")
+        return
     print("PASS secondary motion, bounded combo VFX, sword grip")
     quit(0)

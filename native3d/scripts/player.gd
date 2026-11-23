@@ -38,6 +38,9 @@ var turn_lean: float = 0.0
 var attack_buffered: bool = false
 var dash_direction: Vector3 = Vector3.FORWARD
 var sword_grip: Node3D
+var grip_base_rotation: Vector3 = Vector3(0, 8, 35)
+var aura_material: StandardMaterial3D
+var aura_mesh: MeshInstance3D
 var sword_trail: MeshInstance3D
 var motion_driver: RefCounted
 var shadow_root: Node3D
@@ -150,8 +153,7 @@ func _attach_sword() -> void:
         anchor = attachment
     else:
         anchor = model_root
-    # The grip is at the hand origin. Separate pieces give a readable sword
-    # silhouette while keeping the model cheap enough for a mobile prototype.
+    # The grip node sits at the hand origin; the blade extends along -Y.
     var grip = Node3D.new()
     sword_grip = grip
     anchor.add_child(grip)
@@ -159,13 +161,40 @@ func _attach_sword() -> void:
         grip.position = Vector3(0.4, 1.0, 0.0)
     if hand >= 0:
         grip.position = Vector3(0.038, 0.0, -0.005)
-    grip.rotation_degrees = Vector3(0, 8, 35)
+    grip_base_rotation = Vector3(0, 8, 35)
+    grip.rotation_degrees = grip_base_rotation
     _pose_gripping_fingers()
-    _sword_piece(grip, Vector3(0, 0.025, 0), Vector3(0.036, 0.10, 0.036), Color(0.25, 0.12, 0.12), 0.1)
-    _sword_piece(grip, Vector3(0, -0.045, 0), Vector3(0.12, 0.022, 0.055), Color(0.50, 0.32, 0.21), 0.65)
-    _sword_piece(grip, Vector3(0, 0.079, 0), Vector3(0.045, 0.024, 0.045), Color(0.45, 0.28, 0.19), 0.6)
+    # Grip: leather-wrapped cylinder with wrap rings and a pommel.
+    _sword_cylinder(grip, Vector3(0, 0.0, 0), 0.017, 0.12, Color(0.23, 0.11, 0.10), 0.35, 0.85)
+    _sword_cylinder(grip, Vector3(0, 0.034, 0), 0.0195, 0.012, Color(0.12, 0.06, 0.05), 0.30, 0.90)
+    _sword_cylinder(grip, Vector3(0, -0.034, 0), 0.0195, 0.012, Color(0.12, 0.06, 0.05), 0.30, 0.90)
+    _sword_sphere(grip, Vector3(0, 0.078, 0), 0.024, Color(0.55, 0.42, 0.18), 0.9, 0.25)
+    # Cross-guard: a wide gold bar with a center boss.
+    _sword_piece(grip, Vector3(0, 0.062, 0), Vector3(0.15, 0.020, 0.032), Color(0.62, 0.47, 0.20), 0.9, 0.30)
+    _sword_piece(grip, Vector3(0, 0.062, 0), Vector3(0.05, 0.028, 0.05), Color(0.70, 0.54, 0.24), 0.9, 0.30)
     _make_blade(grip)
-    _sword_piece(grip, Vector3(0.008, -0.48, -0.014), Vector3(0.009, 0.73, 0.006), Color(0.58, 0.25, 1.0), 0.3, true)
+    # Aura: an additive hex shell hugging the blade, pulsed in _animate.
+    var aura = MeshInstance3D.new()
+    var aura_shape = CylinderMesh.new()
+    aura_shape.top_radius = 0.055
+    aura_shape.bottom_radius = 0.028
+    aura_shape.height = 0.98
+    aura_shape.radial_segments = 6
+    aura.mesh = aura_shape
+    aura.position = Vector3(0, -0.44, 0)
+    aura_material = StandardMaterial3D.new()
+    aura_material.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+    aura_material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+    aura_material.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+    aura_material.cull_mode = BaseMaterial3D.CULL_DISABLED
+    aura_material.albedo_color = Color(0.55, 0.25, 1.0, 0.10)
+    aura_material.emission_enabled = true
+    aura_material.emission = Color(0.45, 0.15, 1.0)
+    aura_material.emission_energy_multiplier = 0.6
+    aura.material_override = aura_material
+    aura.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+    aura_mesh = aura
+    grip.add_child(aura)
 
 func _pose_gripping_fingers() -> void:
     # VRoid fingers are unanimated by the motion source. Curl them around the
@@ -182,9 +211,10 @@ func _pose_gripping_fingers() -> void:
             skeleton.set_bone_pose_rotation(bone, bone_rest[bone] * Quaternion.from_euler(Vector3(0, -0.28, -0.35)))
 
 func _make_blade(parent: Node3D) -> void:
-    # A thin, tapered prism reads as a blade instead of a box at close range.
-    var outline = [Vector2(-0.034, -0.10), Vector2(0.034, -0.10),
-        Vector2(0.032, -0.84), Vector2(0.005, -1.03), Vector2(-0.025, -0.93)]
+    # A tapered prism with a raised center fuller reads as a real blade at
+    # close range while staying cheap enough for a mobile prototype.
+    var outline = [Vector2(-0.034, 0.05), Vector2(0.034, 0.05),
+        Vector2(0.030, -0.69), Vector2(0.005, -0.88), Vector2(-0.026, -0.78)]
     var surface = SurfaceTool.new()
     surface.begin(Mesh.PRIMITIVE_TRIANGLES)
     for side in [-1.0, 1.0]:
@@ -208,6 +238,43 @@ func _make_blade(parent: Node3D) -> void:
     material.roughness = 0.25
     blade.material_override = material
     parent.add_child(blade)
+    # Center fuller ridge.
+    _sword_piece(parent, Vector3(0, -0.40, 0.012), Vector3(0.010, 0.78, 0.004), Color(0.42, 0.48, 0.55), 0.85, 0.35)
+    # Glowing power edges along both sides of the blade.
+    _sword_piece(parent, Vector3(0.028, -0.40, 0.0125), Vector3(0.005, 0.80, 0.003), Color(0.58, 0.25, 1.0), 0.3, 0.4, true)
+    _sword_piece(parent, Vector3(-0.028, -0.40, 0.0125), Vector3(0.005, 0.80, 0.003), Color(0.58, 0.25, 1.0), 0.3, 0.4, true)
+
+func _sword_cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, color: Color, metal: float, rough: float) -> void:
+    var piece = MeshInstance3D.new()
+    var mesh = CylinderMesh.new()
+    mesh.top_radius = radius
+    mesh.bottom_radius = radius * 1.12
+    mesh.height = height
+    mesh.radial_segments = 10
+    piece.mesh = mesh
+    var material = StandardMaterial3D.new()
+    material.albedo_color = color
+    material.metallic = metal
+    material.roughness = rough
+    piece.material_override = material
+    piece.position = pos
+    parent.add_child(piece)
+
+func _sword_sphere(parent: Node3D, pos: Vector3, radius: float, color: Color, metal: float, rough: float) -> void:
+    var piece = MeshInstance3D.new()
+    var mesh = SphereMesh.new()
+    mesh.radius = radius
+    mesh.height = radius * 2.0
+    mesh.radial_segments = 10
+    mesh.rings = 6
+    piece.mesh = mesh
+    var material = StandardMaterial3D.new()
+    material.albedo_color = color
+    material.metallic = metal
+    material.roughness = rough
+    piece.material_override = material
+    piece.position = pos
+    parent.add_child(piece)
 
 func _sword_piece(parent: Node3D, pos: Vector3, size: Vector3, color: Color, metal: float, glow: bool = false) -> void:
     var piece = MeshInstance3D.new()
@@ -382,6 +449,19 @@ func _animate(delta: float) -> void:
         _pose("J_Bip_R_UpperArm", Vector3(-0.32 * swing if combo == 4 else -0.10 * swing, -0.30 - stride * 0.12 + swing * 1.15 * side, -1.08 + arm_raise * (1.20 if combo == 4 else 0.95)))
         _pose("J_Bip_R_LowerArm", Vector3(0, 0.25 + swing * 0.70 * side, -0.38 - 0.25 * dash - 0.15 * arm_raise))
         _pose("J_Bip_R_Hand", Vector3(0.10, -0.15 + swing * 0.30 * side, 0.12))
+    # While moving, tilt the blade outward and slightly down so the swing
+    # carries it clear of the chest scarf instead of through it.
+    if sword_grip:
+        var walk = speed_ratio
+        var grip_target = Vector3(grip_base_rotation.x - 6.0 * walk, grip_base_rotation.y + 4.0 * walk, grip_base_rotation.z + 30.0 * walk)
+        sword_grip.rotation_degrees = sword_grip.rotation_degrees.lerp(grip_target, 1.0 - exp(-delta * 14.0))
+    # Aura breathes at idle and flares during the swing.
+    if aura_material and aura_mesh:
+        var atk = 1.0 - attack_timer / ATTACK_DURATION if attack_timer > 0.0 else -1.0
+        var flare = 0.18 * sin(PI * clampf(atk, 0.0, 1.0)) if atk >= 0.0 else 0.0
+        var pulse = 0.03 * sin(visual_time * 6.0)
+        aura_material.albedo_color.a = 0.10 + pulse + flare
+        aura_mesh.scale = Vector3(1.0 + 0.05 * sin(visual_time * 6.0) + 0.35 * flare, 1.0, 1.0 + 0.05 * sin(visual_time * 6.0) + 0.35 * flare)
     if secondary_motion:
         if profile_secondary:
             var started = Time.get_ticks_usec()
