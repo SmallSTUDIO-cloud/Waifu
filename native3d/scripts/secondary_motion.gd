@@ -193,9 +193,7 @@ func update(delta: float) -> void:
         var gravity_change: Vector3 = gravity_local - joint.gravity_rest
         var limit: float = joint.limit
         var sensitivity: float = (0.006 if joint.kind == "hair" else 0.0035) * joint.variation
-        # A faint idle sway keeps hair roots alive even when standing still.
-        var sway = sin(time * 1.9 + float(joint.bone % 7) * 0.9) * 0.010 if (joint.kind == "hair" and joint.root) else 0.0
-        var target_x = clampf(-local_accel.z * sensitivity - local_velocity.z * 0.009 - local_accel.y * sensitivity * 0.15 + gravity_change.z * 0.025 + sway, -limit, limit)
+        var target_x = clampf(-local_accel.z * sensitivity - local_velocity.z * 0.009 - local_accel.y * sensitivity * 0.15 + gravity_change.z * 0.025, -limit, limit)
         var target_z = clampf(local_accel.x * sensitivity + local_velocity.x * 0.009 - gravity_change.x * 0.025, -limit, limit)
         var remaining = minf(delta, MAX_DT)
         while remaining > 0.000001:
@@ -204,6 +202,10 @@ func update(delta: float) -> void:
             joint.z.step(target_z, step_dt, joint.stiffness, joint.damping, limit)
             remaining -= step_dt
         var offset = Quaternion(Vector3.RIGHT, joint.x.angle) * Quaternion(Vector3.FORWARD, joint.z.angle)
+        # A faint idle sway keeps hair roots alive even when standing still.
+        # Applied after the spring so the simulated state can still settle.
+        if joint.kind == "hair" and joint.root:
+            offset = offset * Quaternion(Vector3.RIGHT, sin(time * 1.9 + float(joint.bone % 7) * 0.9) * 0.012)
         var result = base * Quaternion.IDENTITY.slerp(offset, float(joint.weight))
         if joint.kind == "skirt": result = _constrain_skirt(joint, base, result)
         joint.last = result.normalized()
