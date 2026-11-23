@@ -241,8 +241,8 @@ func _make_blade(parent: Node3D) -> void:
     # Center fuller ridge.
     _sword_piece(parent, Vector3(0, -0.40, 0.012), Vector3(0.010, 0.78, 0.004), Color(0.42, 0.48, 0.55), 0.85, 0.35)
     # Glowing power edges along both sides of the blade.
-    _sword_piece(parent, Vector3(0.028, -0.40, 0.0125), Vector3(0.005, 0.80, 0.003), Color(0.58, 0.25, 1.0), 0.3, 0.4, true)
-    _sword_piece(parent, Vector3(-0.028, -0.40, 0.0125), Vector3(0.005, 0.80, 0.003), Color(0.58, 0.25, 1.0), 0.3, 0.4, true)
+    _sword_piece(parent, Vector3(0.028, -0.40, 0.0125), Vector3(0.005, 0.80, 0.003), Color(0.58, 0.25, 1.0), 0.3, true)
+    _sword_piece(parent, Vector3(-0.028, -0.40, 0.0125), Vector3(0.005, 0.80, 0.003), Color(0.58, 0.25, 1.0), 0.3, true)
 
 func _sword_cylinder(parent: Node3D, pos: Vector3, radius: float, height: float, color: Color, metal: float, rough: float) -> void:
     var piece = MeshInstance3D.new()
