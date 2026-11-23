@@ -36,24 +36,22 @@ func run_test() -> void:
 	# Acceleration reaction: shove the character sideways; a deep hair bone
 	# must deviate from its rest pose, stay inside the swing limit, and settle.
 	await process_frame
-	var tip_rest = player.skeleton.get_bone_global_pose(deepest_hair).basis
+	var tip_rest = player.skeleton.get_bone_pose_rotation(deepest_hair)
 	var max_angle = 0.0
 	# Accelerate (not constant velocity): wiggle reacts to acceleration.
 	var dbg = w.modifiers[0].mod
-	print("DBG bone_idx=", dbg._bone_idx, " infl=", dbg.influence, " cbmode=", player.skeleton.modifier_callback_mode_process, " nmods=", w.modifiers.size())
 	for i in range(8):
 		player.model_root.position.x += 0.012 * float(i + 1)
 		await process_frame
-	print("DBG after move dir=", dbg._global_direction)
-	await process_frame
-	print("DBG frame2 dir=", dbg._global_direction)
-	var moved_angle = tip_rest.get_rotation_quaternion().angle_to(player.skeleton.get_bone_global_pose(deepest_hair).basis.get_rotation_quaternion())
+		await process_frame
+	var moved_angle = tip_rest.angle_to(player.skeleton.get_bone_pose_rotation(deepest_hair))
 	max_angle = moved_angle
+	print("DBG moved_angle=", moved_angle, " bone=", player.skeleton.get_bone_name(deepest_hair), " depth=", deepest_depth)
 	check(moved_angle > 0.02, "hair tip did not react to acceleration (%.4f)" % moved_angle)
 	check(moved_angle < deg_to_rad(58.0) + 0.05, "hair tip exceeded swing limit (%.2f deg)" % rad_to_deg(moved_angle))
 	for i in range(90):
 		await process_frame
-	var settled_angle = tip_rest.get_rotation_quaternion().angle_to(player.skeleton.get_bone_global_pose(deepest_hair).basis.get_rotation_quaternion())
+	var settled_angle = tip_rest.angle_to(player.skeleton.get_bone_pose_rotation(deepest_hair))
 	check(settled_angle < max_angle, "hair did not settle after motion")
 	check(settled_angle < deg_to_rad(58.0) + 0.05, "hair unbounded after settle")
 
