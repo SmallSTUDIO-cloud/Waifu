@@ -39,11 +39,11 @@ var camera_touches: Dictionary = {}
 var camera_pinch_distance: float = 0.0
 var view_name: String = ""
 var view_poses := {
-    "east": [Vector3(30, 12, 0), Vector3(0, 3, 0)],
-    "west": [Vector3(-30, 12, 0), Vector3(0, 3, 0)],
-    "north": [Vector3(0, 13, -30), Vector3(0, 4, 6)],
-    "south": [Vector3(0, 13, 30), Vector3(0, 4, -6)],
-    "center": [Vector3(11, 9, 13), Vector3(0, 1, 0)],
+    "east": [Vector3(44, 15, 0), Vector3(0, 3, 0)],
+    "west": [Vector3(-44, 15, 0), Vector3(0, 3, 0)],
+    "north": [Vector3(0, 16, -44), Vector3(0, 4, 8)],
+    "south": [Vector3(0, 16, 44), Vector3(0, 4, -8)],
+    "center": [Vector3(13, 10, 15), Vector3(0, 1, 0)],
 }
 var camera_exclusions: Array[Control] = []
 var control_touches: Dictionary = {}

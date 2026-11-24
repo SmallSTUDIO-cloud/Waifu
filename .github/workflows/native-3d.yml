@@ -58,6 +58,8 @@ jobs:
       - name: Software-rendered perf report
         run: |
           xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --quit-after 240 -- --smoke-play --perf-report 2>&1 | tee /tmp/perf.log
+          echo "--- heaviest view (plaza overview, software-rendered) ---" >> /tmp/perf.log
+          xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --quit-after 240 -- --preview-view-center --perf-report 2>&1 | tee -a /tmp/perf.log
           if grep -E 'SCRIPT ERROR|^ERROR:' /tmp/perf.log; then
             echo "::error::perf run had script errors"
             exit 1

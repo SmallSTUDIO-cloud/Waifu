@@ -55,7 +55,7 @@ def facade_cell(path, seed, style):
     """One floor cell (256x256): 1 window bay ~4.2m wide, 3m floor."""
     rnd = random.Random(seed)
     w = h = 256
-    img = noise_rgb((w, h), (168, 162, 152), 34, seed).convert("RGBA")
+    img = noise_rgb((w, h), (148, 142, 132), 42, seed).convert("RGBA")
     d = ImageDraw.Draw(img)
     # panel seams
     for x in (0, 255):
@@ -82,7 +82,7 @@ def facade_cell(path, seed, style):
         d.line([(wx + ww // 2, wy), (wx + ww // 2, wy + wh)], fill=(30, 34, 40, 160), width=4)
         d.line([(wx, wy + wh // 2), (wx + ww, wy + wh // 2)], fill=(30, 34, 40, 160), width=4)
     else:
-        cracks(d, wx + ww, wy + wh, rnd, 5, color=(200, 200, 200, 120), width=1)
+        cracks(d, wx + ww, wy + wh, rnd, 5, color=(38, 38, 40), width=1)
         d.polygon([(wx + 20, wy + 30), (wx + 70, wy + 20), (wx + 55, wy + 90), (wx + 15, wy + 80)], fill=(10, 10, 10, 255))
     # balcony slab + railing for styles 1/2
     if style in (1, 2):
@@ -121,7 +121,7 @@ def concrete(path, seed):
 def plaza(path):
     rnd = random.Random(7)
     s = 1024
-    img = noise_rgb((s, s), (158, 152, 142), 36, 7).convert("RGBA")
+    img = noise_rgb((s, s), (146, 140, 130), 40, 7).convert("RGBA")
     d = ImageDraw.Draw(img)
     # slab grid
     for i in range(0, s + 1, 128):

@@ -30,9 +30,16 @@ func run_test() -> void:
     check(gz.buildings.size() >= 12, "too few perimeter buildings: %d" % gz.buildings.size())
     for b in gz.buildings:
         check(b.facade.visibility_range_end >= 60.0, "facade LOD1 range missing")
-        check(b.simple.visibility_range_begin >= 60.0 and b.simple.visibility_range_end > b.simple.visibility_range_begin, "LOD2 silhouette range missing")
         for p in b.props:
             check(p.visibility_range_end <= 40.0, "prop LOD0 range missing")
+    # merged per-district LOD2 HLOD silhouettes
+    for dname in ["East_District", "West_District", "North_District", "South_District"]:
+        var dn: Node = gz.get_node(dname)
+        var found := false
+        for c in dn.get_children():
+            if c is MeshInstance3D and c.visibility_range_begin >= 60.0 and c.visibility_range_end > c.visibility_range_begin:
+                found = true
+        check(found, "district HLOD silhouette missing: " + dname)
 
     # Central plaza must stay open and walkable (gameplay clamp is ±8.5 m).
     for s in gz.solids:

@@ -5,10 +5,11 @@ extends Node3D
 # all textures are original in-repo art (assets/env/, tools/gen_env_textures.py).
 #
 # Optimization model (gl_compatibility renderer — no occlusion server, no
-# LightmapGI, so we lean on frustum culling + aggressive visibility-range LOD):
-#   LOD0  0..34 m   facades + rooftop props + balconies + vehicle detail
+# LightmapGI, so we lean on frustum culling + aggressive visibility-range LOD
+# + merging same-material static geometry into few draw calls):
+#   LOD0  0..34 m   facades + merged rooftop props/balconies + vehicle detail
 #   LOD1  32..70 m  facade box only (2 m hysteresis overlap, fade disabled)
-#   LOD2  68..170 m plain silhouette per building (the HLOD step)
+#   LOD2  68..170 m merged per-district silhouette boxes (HLOD step)
 #   skyline       4 district MultiMeshes of merged silhouette boxes, 30..260 m
 #   grass/rubble  8 octant MultiMesh sectors with distance visibility
 # One shadow-capped DirectionalLight3D (max distance 48 m, 2 splits); far LOD
@@ -76,11 +77,11 @@ func _mat(key: String) -> StandardMaterial3D:
             m.uv1_scale = Vector3(24, 24, 1)
             m.roughness = 1.0
         "metal":
-            m.albedo_color = Color(0.55, 0.57, 0.60)
+            m.albedo_color = Color(0.42, 0.44, 0.48)
             m.metallic = 0.8
             m.roughness = 0.45
         "metal_dark":
-            m.albedo_color = Color(0.22, 0.23, 0.26)
+            m.albedo_color = Color(0.20, 0.21, 0.24)
             m.metallic = 0.7
             m.roughness = 0.5
         "tire":
@@ -159,6 +160,29 @@ func _mi(mesh: Mesh, parent: Node, pos: Vector3, mat: Material = null, yaw: floa
     return mi
 
 
+# Merge many transformed primitive parts into ONE mesh (one draw call).
+# parts: [{ "mesh": Mesh, "pos": Vector3, "rot": Basis }]
+func _merged_mesh(parts: Array) -> ArrayMesh:
+    var st := SurfaceTool.new()
+    st.begin(Mesh.PRIMITIVE_TRIANGLES)
+    for p in parts:
+        var mesh: Mesh = p.mesh
+        var xform := Transform3D(p.get("rot", Basis()), p.pos)
+        for si in range(mesh.get_surface_count()):
+            var arr := mesh.surface_get_arrays(si)
+            var verts: PackedVector3Array = arr[Mesh.ARRAY_VERTEX]
+            var norms: PackedVector3Array = arr[Mesh.ARRAY_NORMAL]
+            var uvs: PackedVector2Array = arr[Mesh.ARRAY_TEX_UV]
+            var idx: PackedInt32Array = arr[Mesh.ARRAY_INDEX]
+            for k in range(idx.size()):
+                var vi: int = idx[k]
+                st.set_normal(xform.basis * norms[vi])
+                if uvs.size() > 0:
+                    st.set_uv(uvs[vi])
+                st.add_vertex(xform * verts[vi])
+    return st.commit()
+
+
 func _range(gi: GeometryInstance3D, begin: float, end: float) -> void:
     gi.visibility_range_begin = begin
     gi.visibility_range_end = end
@@ -208,10 +232,10 @@ func _lighting() -> void:
     env.background_mode = Environment.BG_SKY
     env.sky = sky
     env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-    env.ambient_light_energy = 0.55
+    env.ambient_light_energy = 0.42
     env.fog_enabled = true
     env.fog_light_color = Color(0.70, 0.80, 0.93)
-    env.fog_light_energy = 0.6
+    env.fog_light_energy = 0.5
     env.fog_sky_affect = 0.45
     env.fog_aerial_perspective = 0.35
     env.fog_depth_begin = 80.0
@@ -220,12 +244,12 @@ func _lighting() -> void:
     env.tonemap_mode = Environment.TONE_MAPPER_ACES
     env_node.environment = env
     lighting.add_child(env_node)
-    # One sun; shadows capped to the gameplay area (baked/static look comes from
-    # sky ambient + fog; the compatibility renderer cannot bake LightmapGI).
+    # One sun; shadows capped to the gameplay area (the compatibility renderer
+    # cannot bake LightmapGI, so static shading comes from sky ambient + fog).
     sun = DirectionalLight3D.new()
     sun.rotation_degrees = Vector3(-50.0, 32.0, 0.0)
     sun.light_color = Color(1.0, 0.95, 0.86)
-    sun.light_energy = 1.25
+    sun.light_energy = 1.05
     sun.shadow_enabled = true
     sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
     sun.directional_shadow_max_distance = 48.0
@@ -260,17 +284,16 @@ func _ground() -> void:
     disc.material_override = plm
     plaza_node.add_child(disc)
     _range(disc, 0.0, 260.0)
-    # ring road: 16 tangent segments
-    var road_mat := _mat("asphalt")
+    # ring road (16 tangent segments) + four exit roads, merged into 2 meshes
+    var road_parts: Array = []
     for i in range(16):
         var a := TAU * float(i) / 16.0
-        var seg := _mi(_box_mesh(Vector3(5.6, 0.06, 6.0)), plaza_node, Vector3(sin(a) * 13.9, 0.015, cos(a) * 13.9), road_mat, a)
-        _range(seg, 0.0, 200.0)
-    # four exit roads
+        road_parts.append({"mesh": _box_mesh(Vector3(5.6, 0.06, 6.0)), "pos": Vector3(sin(a) * 13.9, 0.015, cos(a) * 13.9), "rot": Basis(Vector3.UP, a)})
     for d in range(4):
         var a := TAU * float(d) / 4.0
-        var road := _mi(_box_mesh(Vector3(6.0, 0.05, 34.0)), plaza_node, Vector3(sin(a) * 31.5, 0.012, cos(a) * 31.5), road_mat, a)
-        _range(road, 0.0, 220.0)
+        road_parts.append({"mesh": _box_mesh(Vector3(6.0, 0.05, 34.0)), "pos": Vector3(sin(a) * 31.5, 0.012, cos(a) * 31.5), "rot": Basis(Vector3.UP, a)})
+    var road := _mi(_merged_mesh(road_parts), plaza_node, Vector3.ZERO, _mat("asphalt"))
+    _range(road, 0.0, 220.0)
     _solid(Vector3(0, -0.5, 0), Vector3(240, 1.0, 240), true)
 
 
@@ -294,11 +317,13 @@ func _facade_box(size: Vector3, variant: int) -> BoxMesh:
 func _buildings() -> void:
     var district_names := ["East_District", "West_District", "North_District", "South_District"]
     var district_nodes := {}
+    var district_lod2 := {}
     for dname in district_names:
         var dn := Node3D.new()
         dn.name = dname
         add_child(dn)
         district_nodes[dname] = dn
+        district_lod2[dname] = []
     var n := 0
     var angle := 8.0
     while angle < 360.0 and n < 16:
@@ -314,12 +339,20 @@ func _buildings() -> void:
             var dname := "North_District" if pos.z < 0.0 else "South_District"
             if absf(pos.x) > absf(pos.z):
                 dname = "East_District" if pos.x > 0.0 else "West_District"
-            _building(district_nodes[dname], pos, Vector3(size, floors * 3.0, size), floors, variant, float(n % 3) * 0.33, angle)
+            _building(district_nodes[dname], district_lod2[dname], pos, Vector3(size, floors * 3.0, size), floors, variant, float(n % 3) * 0.33, angle)
             n += 1
         angle += 20.0
+    # merged per-district LOD2 silhouettes (HLOD): 4 meshes instead of N boxes
+    for dname in district_names:
+        var parts: Array = district_lod2[dname]
+        if parts.is_empty():
+            continue
+        var simple := _mi(_merged_mesh(parts), district_nodes[dname], Vector3.ZERO, _mat("concrete_dark"))
+        simple.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+        _range(simple, LOD2_BEGIN, LOD2_END)
 
 
-func _building(parent: Node, pos: Vector3, size: Vector3, floors: int, variant: int, damage: float, angle: float) -> void:
+func _building(parent: Node, district_lod2: Array, pos: Vector3, size: Vector3, floors: int, variant: int, damage: float, angle: float) -> void:
     var node := Node3D.new()
     node.name = "Building_%02d" % buildings.size()
     node.position = pos
@@ -329,32 +362,35 @@ func _building(parent: Node, pos: Vector3, size: Vector3, floors: int, variant: 
     # LOD0/LOD1: facade box (side faces get the tiled facade, roof plain concrete)
     var facade := _mi(_facade_box(size, variant), node, center)
     _range(facade, 0.0, LOD1_END)
-    # LOD2: plain silhouette (HLOD step for this building)
-    var simple := _mi(_box_mesh(size), node, center, _mat("concrete_dark"))
-    simple.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-    _range(simple, LOD2_BEGIN, LOD2_END)
-    # LOD0-only props
-    var props: Array = []
-    props.append(_mi(_cyl(0.9, 0.9, 1.6, 10), node, Vector3(size.x * 0.25, size.y + 0.8, size.z * 0.2), _mat("metal")))
+    district_lod2.append({"mesh": _box_mesh(size), "pos": pos + center})
+    # LOD0-only props, merged per material into one mesh each
+    var metal_parts: Array = []
+    var concrete_parts: Array = []
+    var rebar_parts: Array = []
+    metal_parts.append({"mesh": _cyl(0.9, 0.9, 1.6, 10), "pos": Vector3(size.x * 0.25, size.y + 0.8, size.z * 0.2)})
     for i in range(2):
-        props.append(_mi(_box_mesh(Vector3(0.7, 0.5, 0.7)), node, Vector3(-size.x * 0.3 + i * 0.9, size.y + 0.25, -size.z * 0.25), _mat("metal")))
+        metal_parts.append({"mesh": _box_mesh(Vector3(0.7, 0.5, 0.7)), "pos": Vector3(-size.x * 0.3 + i * 0.9, size.y + 0.25, -size.z * 0.25)})
     if floors >= 5:
-        props.append(_mi(_cyl(0.05, 0.08, 3.2, 6), node, Vector3(-size.x * 0.3, size.y + 1.6, size.z * 0.3), _mat("metal")))
+        metal_parts.append({"mesh": _cyl(0.05, 0.08, 3.2, 6), "pos": Vector3(-size.x * 0.3, size.y + 1.6, size.z * 0.3)})
     if variant == 1 or variant == 2:
         for f in range(1, floors, 2):
-            props.append(_mi(_box_mesh(Vector3(size.x + 0.5, 0.12, 0.9)), node, Vector3(0, f * 3.0 + 0.4, size.z * 0.5 + 0.45), _mat("concrete")))
+            concrete_parts.append({"mesh": _box_mesh(Vector3(size.x + 0.5, 0.12, 0.9)), "pos": Vector3(0, f * 3.0 + 0.4, size.z * 0.5 + 0.45)})
     if damage > 0.3:
-        var slab := _mi(_box_mesh(Vector3(size.x * 0.45, 0.4, size.z * 0.45)), node, Vector3(-size.x * 0.28, size.y - 0.1, -size.z * 0.28), _mat("concrete"))
-        slab.rotation.z = 0.35
-        slab.rotation.x = -0.2
-        props.append(slab)
+        concrete_parts.append({"mesh": _box_mesh(Vector3(size.x * 0.45, 0.4, size.z * 0.45)), "pos": Vector3(-size.x * 0.28, size.y - 0.1, -size.z * 0.28), "rot": Basis(Vector3(1, 0, 0), -0.2) * Basis(Vector3(0, 0, 1), 0.35)})
         for i in range(3):
-            props.append(_mi(_cyl(0.03, 0.03, 1.4, 5), node, Vector3(-size.x * 0.3 + i * 0.25, size.y + 0.5, -size.z * 0.3), _mat("rebar")))
+            rebar_parts.append({"mesh": _cyl(0.03, 0.03, 1.4, 5), "pos": Vector3(-size.x * 0.3 + i * 0.25, size.y + 0.5, -size.z * 0.3)})
+    var props: Array = []
+    if not metal_parts.is_empty():
+        props.append(_mi(_merged_mesh(metal_parts), node, Vector3.ZERO, _mat("metal")))
+    if not concrete_parts.is_empty():
+        props.append(_mi(_merged_mesh(concrete_parts), node, Vector3.ZERO, _mat("concrete")))
+    if not rebar_parts.is_empty():
+        props.append(_mi(_merged_mesh(rebar_parts), node, Vector3.ZERO, _mat("rebar")))
     for p in props:
         _range(p, 0.0, LOD0_END)
         p.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     _solid(pos + center, size + Vector3(0.6, 0.0, 0.6))
-    buildings.append({"node": node, "facade": facade, "simple": simple, "props": props, "pos": pos, "size": size})
+    buildings.append({"node": node, "facade": facade, "props": props, "pos": pos, "size": size})
 
 
 # ---------------------------------------------------------------- elevated road
@@ -366,32 +402,29 @@ func _elevated() -> void:
     var deck_y := 7.2
     var z := -16.0
     var w := 7.0
+    var concrete_parts: Array = []
+    var rail_parts: Array = []
     var x := -36.0
     while x < 36.0:
         var x1 := x + 6.0
         if not (x1 > -5.0 and x < 7.0):  # broken gap in the deck
-            var seg := _mi(_box_mesh(Vector3(6.0, 0.9, w)), elevated_road, Vector3(x + 3.0, deck_y, z), _mat("concrete"))
-            _range(seg, 0.0, 95.0)
+            concrete_parts.append({"mesh": _box_mesh(Vector3(6.0, 0.9, w)), "pos": Vector3(x + 3.0, deck_y, z)})
             if randi() % 3 != 0:
-                _range(_mi(_box_mesh(Vector3(6.0, 1.0, 0.15)), elevated_road, Vector3(x + 3.0, deck_y + 0.95, z - w * 0.5 + 0.1), _mat("metal_dark")), 0.0, 60.0)
+                rail_parts.append({"mesh": _box_mesh(Vector3(6.0, 1.0, 0.15)), "pos": Vector3(x + 3.0, deck_y + 0.95, z - w * 0.5 + 0.1)})
             if randi() % 3 != 0:
-                _range(_mi(_box_mesh(Vector3(6.0, 1.0, 0.15)), elevated_road, Vector3(x + 3.0, deck_y + 0.95, z + w * 0.5 - 0.1), _mat("metal_dark")), 0.0, 60.0)
+                rail_parts.append({"mesh": _box_mesh(Vector3(6.0, 1.0, 0.15)), "pos": Vector3(x + 3.0, deck_y + 0.95, z + w * 0.5 - 0.1)})
             _solid(Vector3(x + 3.0, deck_y, z), Vector3(6.0, 0.9, w))
         x = x1
     for px in [-33.0, -27.0, -21.0, -15.0, 11.0, 17.0, 23.0, 29.0, 35.0]:
-        var pil := _mi(_cyl(0.8, 1.0, deck_y, 10), elevated_road, Vector3(px, deck_y * 0.5, z), _mat("concrete"))
-        _range(pil, 0.0, 95.0)
+        concrete_parts.append({"mesh": _cyl(0.8, 1.0, deck_y, 10), "pos": Vector3(px, deck_y * 0.5, z)})
         _solid(Vector3(px, deck_y * 0.5, z), Vector3(1.8, deck_y, 1.8))
-    var lean := _mi(_cyl(0.7, 0.9, 5.0, 8), elevated_road, Vector3(1.0, 2.5, z), _mat("concrete"))
-    lean.rotation.z = 0.6
-    _range(lean, 0.0, 60.0)
-    var e1 := _mi(_box_mesh(Vector3(2.2, 0.8, 5.0)), elevated_road, Vector3(-5.6, deck_y - 0.3, z), _mat("concrete"))
-    e1.rotation.z = 0.5
-    _range(e1, 0.0, 60.0)
-    var e2 := _mi(_box_mesh(Vector3(1.6, 0.8, 4.0)), elevated_road, Vector3(7.5, deck_y - 0.5, z + 1.0), _mat("concrete"))
-    e2.rotation.z = -0.7
-    e2.rotation.x = 0.3
-    _range(e2, 0.0, 60.0)
+    concrete_parts.append({"mesh": _cyl(0.7, 0.9, 5.0, 8), "pos": Vector3(1.0, 2.5, z), "rot": Basis(Vector3(0, 0, 1), 0.6)})  # leaning broken pillar
+    concrete_parts.append({"mesh": _box_mesh(Vector3(2.2, 0.8, 5.0)), "pos": Vector3(-5.6, deck_y - 0.3, z), "rot": Basis(Vector3(0, 0, 1), 0.5)})
+    concrete_parts.append({"mesh": _box_mesh(Vector3(1.6, 0.8, 4.0)), "pos": Vector3(7.5, deck_y - 0.5, z + 1.0), "rot": Basis(Vector3(1, 0, 0), 0.3) * Basis(Vector3(0, 0, 1), -0.7)})
+    var deck := _mi(_merged_mesh(concrete_parts), elevated_road, Vector3.ZERO, _mat("concrete"))
+    _range(deck, 0.0, 95.0)
+    var rails := _mi(_merged_mesh(rail_parts), elevated_road, Vector3.ZERO, _mat("metal_dark"))
+    _range(rails, 0.0, 60.0)
     var far := _mi(_box_mesh(Vector3(72.0, 0.9, w)), elevated_road, Vector3(0, deck_y, z), _mat("concrete_dark"))
     far.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     _range(far, 95.0, 260.0)
@@ -419,9 +452,11 @@ func _billboard(parent: Node, pos: Vector3, yaw: float, tex_name: String, text: 
         panel.surface_set_material(si, bm if n.z > 0.5 else _mat("metal_dark"))
     var p := _mi(panel, node, Vector3.ZERO)
     _range(p, 0.0, 200.0)
+    var pole_parts: Array = []
     for sx in [-1.0, 1.0]:
-        var pole := _mi(_cyl(0.12, 0.12, pos.y, 8), node, Vector3(sx * size.x * 0.35, -pos.y * 0.5, -0.4), _mat("metal_dark"))
-        _range(pole, 0.0, 120.0)
+        pole_parts.append({"mesh": _cyl(0.12, 0.12, pos.y, 8), "pos": Vector3(sx * size.x * 0.35, -pos.y * 0.5, -0.4)})
+    var poles := _mi(_merged_mesh(pole_parts), node, Vector3.ZERO, _mat("metal_dark"))
+    _range(poles, 0.0, 120.0)
     _solid(Vector3(pos.x, pos.y * 0.5, pos.z), Vector3(size.x * 0.9, pos.y, 0.8))
     billboard_texts.append(text)
 
@@ -435,23 +470,20 @@ func _landmarks() -> void:
     tower.name = "CommTower"
     tower.position = Vector3(6.0, 0.0, 22.0)
     lm.add_child(tower)
+    var metal_parts: Array = []
     for sx in [-1.0, 1.0]:
         for sz in [-1.0, 1.0]:
-            _range(_mi(_box_mesh(Vector3(0.22, 24.0, 0.22)), tower, Vector3(sx * 1.4, 12.0, sz * 1.4), _mat("metal")), 0.0, 90.0)
+            metal_parts.append({"mesh": _box_mesh(Vector3(0.22, 24.0, 0.22)), "pos": Vector3(sx * 1.4, 12.0, sz * 1.4)})
     for h in [4.0, 8.0, 12.0, 16.0, 20.0]:
         for s in [-1.0, 1.0]:
-            var b1 := _mi(_box_mesh(Vector3(0.08, 4.2, 0.08)), tower, Vector3(s * 1.4, h + 2.0, 0), _mat("metal"))
-            b1.rotation.z = 0.7 * s
-            _range(b1, 0.0, 90.0)
-            var b2 := _mi(_box_mesh(Vector3(0.08, 4.2, 0.08)), tower, Vector3(0, h + 2.0, s * 1.4), _mat("metal"))
-            b2.rotation.x = 0.7 * s
-            _range(b2, 0.0, 90.0)
+            metal_parts.append({"mesh": _box_mesh(Vector3(0.08, 4.2, 0.08)), "pos": Vector3(s * 1.4, h + 2.0, 0), "rot": Basis(Vector3(0, 0, 1), 0.7 * s)})
+            metal_parts.append({"mesh": _box_mesh(Vector3(0.08, 4.2, 0.08)), "pos": Vector3(0, h + 2.0, s * 1.4), "rot": Basis(Vector3(1, 0, 0), 0.7 * s)})
     for py in [10.0, 20.0]:
-        _range(_mi(_cyl(2.4, 2.4, 0.25, 12), tower, Vector3(0, py, 0), _mat("metal")), 0.0, 90.0)
-    _range(_mi(_cyl(0.07, 0.1, 6.0, 6), tower, Vector3(0, 27.0, 0), _mat("metal")), 0.0, 90.0)
-    var dish := _mi(_sphere(1.1, 0.4), tower, Vector3(0, 20.0, 1.6), _mat("metal"))
-    dish.rotation.x = -0.6
-    _range(dish, 0.0, 90.0)
+        metal_parts.append({"mesh": _cyl(2.4, 2.4, 0.25, 12), "pos": Vector3(0, py, 0)})
+    metal_parts.append({"mesh": _cyl(0.07, 0.1, 6.0, 6), "pos": Vector3(0, 27.0, 0)})
+    metal_parts.append({"mesh": _sphere(1.1, 0.4), "pos": Vector3(0, 20.0, 1.6), "rot": Basis(Vector3(1, 0, 0), -0.6)})
+    var mast := _mi(_merged_mesh(metal_parts), tower, Vector3.ZERO, _mat("metal"))
+    _range(mast, 0.0, 90.0)
     _range(_mi(_sphere(0.22, 0.22), tower, Vector3(0, 30.2, 0), _mat("beacon")), 0.0, 200.0)
     var ts := _mi(_cyl(1.6, 2.2, 24.0, 10), tower, Vector3(0, 12.0, 0), _mat("concrete_dark"))
     ts.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
@@ -478,15 +510,19 @@ func _car(parent: Node, pos: Vector3, yaw: float, color: Color) -> void:
     body_mat.albedo_color = color
     body_mat.metallic = 0.35
     body_mat.roughness = 0.6
-    var body := _mi(_box_mesh(Vector3(4.2, 1.0, 1.9)), node, Vector3(0, 0.75, 0), body_mat)
-    var cab := _mi(_box_mesh(Vector3(2.1, 0.65, 1.7)), node, Vector3(-0.2, 1.5, 0), _mat("glass"))
-    _range(body, 0.0, PROP_END)
-    _range(cab, 0.0, PROP_END)
+    var parts: Array = [{"mesh": _box_mesh(Vector3(4.2, 1.0, 1.9)), "pos": Vector3(0, 0.75, 0)}]
+    parts.append({"mesh": _box_mesh(Vector3(2.1, 0.65, 1.7)), "pos": Vector3(-0.2, 1.5, 0)})
+    var wheel_parts: Array = []
     for wx in [-1.4, 1.4]:
         for wz in [-0.85, 0.85]:
-            var wheel := _mi(_cyl(0.34, 0.34, 0.24, 10), node, Vector3(wx, 0.34, wz), _mat("tire"))
-            wheel.rotation.x = PI / 2.0
-            _range(wheel, 0.0, PROP_END)
+            wheel_parts.append({"mesh": _cyl(0.34, 0.34, 0.24, 10), "pos": Vector3(wx, 0.34, wz), "rot": Basis(Vector3(1, 0, 0), PI / 2.0)})
+    # body paint + glass merged separately (different materials)
+    var body := _mi(_merged_mesh([parts[0]]), node, Vector3.ZERO, body_mat)
+    var cab := _mi(_merged_mesh([parts[1]]), node, Vector3.ZERO, _mat("glass"))
+    var wheels := _mi(_merged_mesh(wheel_parts), node, Vector3.ZERO, _mat("tire"))
+    _range(body, 0.0, PROP_END)
+    _range(cab, 0.0, PROP_END)
+    _range(wheels, 0.0, PROP_END)
     var simple := _mi(_box_mesh(Vector3(4.3, 1.9, 2.0)), node, Vector3(0, 0.95, 0), body_mat)
     simple.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     _range(simple, PROP_END - 2.0, PROP_FAR_END)
@@ -508,11 +544,12 @@ func _bus(parent: Node, pos: Vector3, yaw: float) -> void:
     var band := _mi(_box_mesh(Vector3(10.2, 0.9, 2.82)), node, Vector3(0, 1.95, 0), _mat("windows"))
     _range(body, 0.0, PROP_END)
     _range(band, 0.0, PROP_END)
+    var wheel_parts: Array = []
     for wx in [-4.2, -1.4, 1.4, 4.2]:
         for wz in [-1.3, 1.3]:
-            var wheel := _mi(_cyl(0.42, 0.42, 0.3, 10), node, Vector3(wx, 0.42, wz), _mat("tire"))
-            wheel.rotation.x = PI / 2.0
-            _range(wheel, 0.0, PROP_END)
+            wheel_parts.append({"mesh": _cyl(0.42, 0.42, 0.3, 10), "pos": Vector3(wx, 0.42, wz), "rot": Basis(Vector3(1, 0, 0), PI / 2.0)})
+    var wheels := _mi(_merged_mesh(wheel_parts), node, Vector3.ZERO, _mat("tire"))
+    _range(wheels, 0.0, PROP_END)
     var simple := _mi(_box_mesh(Vector3(10.6, 2.9, 2.9)), node, Vector3(0, 1.45, 0), body_mat)
     simple.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     _range(simple, PROP_END - 2.0, PROP_FAR_END)
@@ -557,10 +594,12 @@ func _tree(parent: Node, pos: Vector3) -> void:
     node.position = pos
     parent.add_child(node)
     var trunk := _mi(_cyl(0.22, 0.32, 3.0, 7), node, Vector3(0, 1.5, 0), _mat("bark"))
-    var f1 := _mi(_sphere(1.7, 1.3), node, Vector3(0, 3.6, 0), _mat("leaf"))
-    var f2 := _mi(_sphere(1.1, 0.9), node, Vector3(0.8, 4.6, 0.3), _mat("leaf"))
-    for m in [trunk, f1, f2]:
-        _range(m, 0.0, 45.0)
+    var foliage := _mi(_merged_mesh([
+        {"mesh": _sphere(1.7, 1.3), "pos": Vector3(0, 3.6, 0)},
+        {"mesh": _sphere(1.1, 0.9), "pos": Vector3(0.8, 4.6, 0.3)},
+    ]), node, Vector3.ZERO, _mat("leaf"))
+    _range(trunk, 0.0, 45.0)
+    _range(foliage, 0.0, 45.0)
     var simple := _mi(_sphere(2.3, 1.8), node, Vector3(0, 3.4, 0), _mat("leaf"))
     simple.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     _range(simple, 43.0, 100.0)
@@ -582,7 +621,7 @@ func _vegetation() -> void:
     var quad := _cross_quad()
     for s in range(8):
         var xforms: Array = []
-        for i in range(120):
+        for i in range(160):
             var a := TAU * (float(s) + randf()) / 8.0
             var r := 10.5 + randf() * 55.0
             var p := Vector3(sin(a) * r, 0.02, cos(a) * r)
@@ -649,33 +688,38 @@ func _props() -> void:
         _range(mmi, 0.0, 70.0)
         props.add_child(mmi)
         multimesh_sectors += 1
-    # big rubble clusters near the building line
+    # big rubble clusters near the building line (merged)
+    var cluster_parts: Array = []
     for i in range(6):
         var a := TAU * float(i) / 6.0 + 0.3
         var p := Vector3(sin(a) * 20.5, 0.5, cos(a) * 20.5)
-        var c := _mi(_box_mesh(Vector3(2.4, 1.0, 1.8)), props, p, _mat("concrete"))
-        c.rotation.y = randf() * TAU
-        c.rotation.z = randf() * 0.3
-        _range(c, 0.0, 80.0)
+        cluster_parts.append({"mesh": _box_mesh(Vector3(2.4, 1.0, 1.8)), "pos": p, "rot": Basis(Vector3(0, 0, 1), randf() * 0.3) * Basis(Vector3.UP, randf() * TAU)})
         _solid(p + Vector3(0, 0.4, 0), Vector3(2.4, 1.2, 1.8))
-    # streetlights around the ring road
+    var clusters := _mi(_merged_mesh(cluster_parts), props, Vector3.ZERO, _mat("concrete"))
+    _range(clusters, 0.0, 80.0)
+    # streetlights around the ring road (merged poles+arms, merged heads)
+    var pole_parts: Array = []
+    var head_parts: Array = []
     for i in range(8):
         var a := TAU * (float(i) + 0.5) / 8.0
         var p := Vector3(sin(a) * 16.6, 0, cos(a) * 16.6)
         var inward := Vector3(-sin(a), 0, -cos(a))
-        var pole := _mi(_cyl(0.09, 0.12, 5.6, 6), props, p + Vector3(0, 2.8, 0), _mat("metal_dark"))
-        var arm := _mi(_box_mesh(Vector3(1.6, 0.08, 0.08)), props, p + Vector3(0, 5.5, 0) + inward * 0.7, _mat("metal_dark"))
-        arm.rotation.y = a
-        var head := _mi(_box_mesh(Vector3(0.5, 0.12, 0.25)), props, p + Vector3(0, 5.45, 0) + inward * 1.4, _mat("lamp"))
-        for m in [pole, arm, head]:
-            _range(m, 0.0, PROP_END)
-    # jersey barriers
+        pole_parts.append({"mesh": _cyl(0.09, 0.12, 5.6, 6), "pos": p + Vector3(0, 2.8, 0)})
+        pole_parts.append({"mesh": _box_mesh(Vector3(1.6, 0.08, 0.08)), "pos": p + Vector3(0, 5.5, 0) + inward * 0.7, "rot": Basis(Vector3.UP, a)})
+        head_parts.append({"mesh": _box_mesh(Vector3(0.5, 0.12, 0.25)), "pos": p + Vector3(0, 5.45, 0) + inward * 1.4})
+    var poles := _mi(_merged_mesh(pole_parts), props, Vector3.ZERO, _mat("metal_dark"))
+    _range(poles, 0.0, PROP_END)
+    var heads := _mi(_merged_mesh(head_parts), props, Vector3.ZERO, _mat("lamp"))
+    _range(heads, 0.0, PROP_END)
+    # jersey barriers (merged)
+    var barrier_parts: Array = []
     for i in range(6):
         var a := TAU * float(i) / 6.0 + 0.5
         var p := Vector3(sin(a) * 16.9, 0.4, cos(a) * 16.9)
-        var b := _mi(_box_mesh(Vector3(2.0, 0.8, 0.45)), props, p, _mat("concrete"), a + PI / 2.0)
-        _range(b, 0.0, PROP_END)
+        barrier_parts.append({"mesh": _box_mesh(Vector3(2.0, 0.8, 0.45)), "pos": p, "rot": Basis(Vector3.UP, a + PI / 2.0)})
         _solid(p, Vector3(2.0, 0.8, 0.45))
+    var barriers := _mi(_merged_mesh(barrier_parts), props, Vector3.ZERO, _mat("concrete"))
+    _range(barriers, 0.0, PROP_END)
 
 
 # ---------------------------------------------------------------- skyline HLOD
