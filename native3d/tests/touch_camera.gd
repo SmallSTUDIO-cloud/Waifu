@@ -130,9 +130,11 @@ func run_test() -> void:
     check(scene.player.wiggle.modifiers[0].mod.force_global.length() > 2.0, "sprint wind not applied to physics")
     scene.joystick.direction = Vector2(0.2, 0.2)
     scene._physics_process(1.0 / 60.0)
+    await process_frame
     check(not scene.player.sprinting, "sprint did not release on small stick deflection")
     check(not scene.joystick.sprinting, "joystick glow did not clear")
     scene.joystick.direction = Vector2(0, -1)
+    scene._physics_process(0.0)
     scene.player.dash_cooldown = 0.0
     scene._dodge()
     check(scene.player.dash_direction.x < -0.99, "camera-relative dodge")
