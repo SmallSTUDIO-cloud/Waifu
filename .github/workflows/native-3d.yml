@@ -40,7 +40,7 @@ jobs:
           timeout 180 godot --headless --path native3d --script res://tests/enemy_combat.gd 2>&1 | tee /tmp/enemy-combat.log
           timeout 180 godot --headless --path native3d --script res://tests/ground_zero.gd 2>&1 | tee /tmp/ground-zero.log
           timeout 180 godot --headless --path native3d --script res://tests/sprint_cycle.gd 2>&1 | tee /tmp/sprint-cycle.log
-          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/wiggle.log /tmp/enemy-combat.log /tmp/ground-zero.log | grep -v 'Parameter "t" is null' || true)
+          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/wiggle.log /tmp/enemy-combat.log /tmp/ground-zero.log /tmp/sprint-cycle.log | grep -v 'Parameter "t" is null' || true)
           if [ -n "$errors" ]; then
             echo "::error::$errors"
             exit 1
@@ -113,7 +113,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           bash .github/scripts/capture_preview.sh view-center 48 24
-      - name: Previews E (sprint rework: angles + transitions)
+      - name: Previews E (sprint rework angles and transitions)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
