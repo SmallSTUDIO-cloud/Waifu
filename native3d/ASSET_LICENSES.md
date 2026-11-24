@@ -23,3 +23,6 @@ To rebuild the trimmed motion asset, obtain the mirrored source file and verify 
 ## Polygonal Mind trash-polka Robot — enemy robots
 
 `assets/enemy-robot.glb` is a copy of the CC0 1.0 "Robot" model by Polygonal Mind (trash polka project), converted to GLB with `@gltf-transform copy` (no geometry changes). Source: https://github.com/ToxSam/cc0-models-Polygonal-Mind (repository license CC0-1.0), path `projects/trash-polka/Robot.glb`, Git blob `8726a4304c5777d93476d59b9786ed44219c9797`, source SHA-256 `01c8fdf80c6792f70c7167b4408fbbb645e9ab5b41076ad748c1020d1a8699`, shipped GLB SHA-256 `9d2608b1130276ca4de9386de4a7b0294f6fe91c5ff27b8e7cc3c007310f4fc8`. One model is tinted per combat role at runtime; the character mesh is unchanged.
+
+## WiggleBone addon (MIT)
+- `native3d/addons/wigglebone/` — detomon/wigglebone v3.0.1 (MIT), https://github.com/detomon/wigglebone — SkeletonModifier3D-based jiggle physics used for hair/skirt/sleeve chains at PHYSICS quality FULL. Runtime files only (editor plugin/gizmos omitted); LICENSE included.

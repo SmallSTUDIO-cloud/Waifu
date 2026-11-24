@@ -46,7 +46,7 @@ func run_test() -> void:
 	# limit, and settle back once the motion stops.
 	# Idle hair droops under gravity but stays inside the swing limit.
 	var rest_swing = _swing_of(w, deepest_hair, skeleton)
-	check(rest_swing < deg_to_rad(58.0), "idle hair exceeds swing limit (%.2f deg)" % rad_to_deg(rest_swing))
+	check(rest_swing < deg_to_rad(45.0), "idle hair exceeds swing limit (%.2f deg)" % rad_to_deg(rest_swing))
 	var max_swing = 0.0
 	for i in range(8):
 		player.model_root.position.x += 0.012 * float(i + 1)
@@ -54,12 +54,29 @@ func run_test() -> void:
 		await process_frame
 		max_swing = maxf(max_swing, _swing_of(w, deepest_hair, skeleton))
 	check(max_swing > 0.02, "hair tip did not react to acceleration (%.4f)" % max_swing)
-	check(max_swing < deg_to_rad(58.0) + 0.05, "hair tip exceeded swing limit (%.2f deg)" % rad_to_deg(max_swing))
+	check(max_swing < deg_to_rad(45.0) + 0.05, "hair tip exceeded swing limit (%.2f deg)" % rad_to_deg(max_swing))
 	for i in range(120):
 		await process_frame
 	var settled = _swing_of(w, deepest_hair, skeleton)
 	check(settled < max_swing, "hair did not settle after motion (%.4f vs %.4f)" % [settled, max_swing])
-	check(settled < deg_to_rad(58.0) + 0.05, "hair unbounded after settle")
+	check(settled < deg_to_rad(45.0) + 0.05, "hair unbounded after settle")
+
+	# Tuning invariants: damping is derived from frequency via a damping
+	# ratio; hair must be underdamped, cloth near-critical; tips looser than roots.
+	var hair_root = null
+	var hair_tip = null
+	var cloth_root = null
+	for entry in w.modifiers:
+		var zeta = entry.mod.properties.angular_damp / (TAU * maxf(entry.mod.properties.spring_freq, 0.001))
+		if entry.kind == "hair":
+			check(zeta < 0.35, "hair zeta too high (%.2f)" % zeta)
+			if hair_root == null or entry.depth == 0: hair_root = entry
+			if hair_tip == null or entry.depth > hair_tip.depth: hair_tip = entry
+		elif entry.kind == "cloth":
+			check(zeta > 0.35, "cloth zeta too low (%.2f)" % zeta)
+			if cloth_root == null or entry.depth == 0: cloth_root = entry
+	check(hair_root != null and hair_tip != null and hair_tip.mod.properties.spring_freq < hair_root.mod.properties.spring_freq, "hair tips not looser than roots")
+	check(cloth_root != null and cloth_root.mod.properties.angular_damp > 8.0, "cloth root damping not in cloth range")
 
 	# Quality routing: FULL drives wiggle, REDUCED/OFF hand back to springs.
 	player.set_physics_quality(1)

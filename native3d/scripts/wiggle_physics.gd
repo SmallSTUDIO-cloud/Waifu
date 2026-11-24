@@ -49,23 +49,31 @@ func _add_bone(index: int, kind: String, depth: int) -> void:
 	mod.bone_name = skeleton.get_bone_name(index)
 	var p = WiggleProps.new()
 	var df = clampf(float(depth) / 4.0, 0.0, 1.0)
+	# The addon integrates the spring analytically (undamped) and then decays
+	# angular velocity by exp(-angular_damp * dt), so the damping ratio is
+	# zeta = angular_damp / (TAU * spring_freq). We therefore derive damping
+	# FROM the frequency to hit a target zeta instead of picking two
+	# independent numbers: hair stays underdamped and flowing, cloth is
+	# closer to critically damped so panels don't flap forever.
+	# Roots are stiffer and settle faster; tips get lower freq AND lower damp
+	# (whip/follow-through). A small deterministic per-bone variation keeps
+	# strands from moving in perfect lockstep.
+	var wobble = 0.96 + 0.04 * float(index % 4)
 	if kind == "hair":
-		# Light strands: soft spring, moderate damping so they keep swaying,
-		# gentle gravity droop, wide swing limit; tips looser than roots.
-		p.spring_freq = 3.2 * (1.0 - 0.25 * df)
-		p.angular_damp = 3.2 + 2.6 * df
-		p.gravity = Vector3(0, -3.0, 0)
-		p.swing_span = deg_to_rad(58.0)
-		p.linear_scale = 320.0
-		p.force_scale = 150.0
+		var freq = 3.4 * (1.0 - 0.28 * df) * wobble
+		p.spring_freq = freq
+		p.angular_damp = 1.4 * freq # zeta ~= 0.22, lively but settles
+		p.gravity = Vector3(0, -2.2, 0) # gentle idle droop
+		p.swing_span = deg_to_rad(45.0) # keep strands off the face/scarf
+		p.linear_scale = 340.0 # reaction to walking/dashing
+		p.force_scale = 160.0
 	else:
-		# Cloth (skirt/dress panels, sleeves): heavier, stiffer, slower sway,
-		# stronger gravity sag, tighter swing limit.
-		p.spring_freq = 4.2 * (1.0 - 0.30 * df)
-		p.angular_damp = 5.5 + 2.8 * df
-		p.gravity = Vector3(0, -7.5, 0)
-		p.swing_span = deg_to_rad(40.0)
-		p.linear_scale = 400.0
+		var freq = 4.6 * (1.0 - 0.30 * df) * wobble
+		p.spring_freq = freq
+		p.angular_damp = 3.1 * freq # zeta ~= 0.49, cloth settles fast
+		p.gravity = Vector3(0, -6.5, 0) # visible skirt sag
+		p.swing_span = deg_to_rad(30.0) # panels stay close to the legs
+		p.linear_scale = 430.0
 		p.force_scale = 170.0
 	mod.properties = p
 	mod.influence = 0.0
