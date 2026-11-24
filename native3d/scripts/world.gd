@@ -6,6 +6,7 @@ const ENEMY_PROJECTILE_SCRIPT = preload("res://scripts/enemy_projectile.gd")
 const JOYSTICK_SCRIPT = preload("res://scripts/joystick.gd")
 const COMBAT_VFX = preload("res://scripts/combat_vfx.gd")
 const SETTINGS = preload("res://scripts/settings.gd")
+const GROUND_ZERO = preload("res://scripts/ground_zero.gd")
 var player: CharacterBody3D
 var camera: Camera3D
 var joystick: Control
@@ -36,6 +37,14 @@ var camera_pitch: float = CAMERA_DEFAULT_PITCH
 var camera_distance: float = CAMERA_DEFAULT_DISTANCE
 var camera_touches: Dictionary = {}
 var camera_pinch_distance: float = 0.0
+var view_name: String = ""
+var view_poses := {
+    "east": [Vector3(30, 12, 0), Vector3(0, 3, 0)],
+    "west": [Vector3(-30, 12, 0), Vector3(0, 3, 0)],
+    "north": [Vector3(0, 13, -30), Vector3(0, 4, 6)],
+    "south": [Vector3(0, 13, 30), Vector3(0, 4, -6)],
+    "center": [Vector3(11, 9, 13), Vector3(0, 1, 0)],
+}
 var camera_exclusions: Array[Control] = []
 var control_touches: Dictionary = {}
 var attack_button: Button
@@ -56,8 +65,10 @@ var physics_button: Button
 var effects_button: Button
 
 func _ready() -> void:
-    _environment()
-    _arena()
+    var ground_zero = GROUND_ZERO.new()
+    ground_zero.name = "GroundZero"
+    add_child(ground_zero)
+    ground_zero.build()
     player = PLAYER_SCRIPT.new()
     add_child(player)
     profile_enabled = OS.is_debug_build() and bool(ProjectSettings.get_setting("secondary_motion/profile_debug", false))
@@ -95,6 +106,18 @@ func _ready() -> void:
             for enemy in get_tree().get_nodes_in_group("enemies"):
                 enemy.enabled = false
                 enemy.visible = false
+    for view in ["east", "west", "north", "south", "center"]:
+        if "--preview-view-" + view in args:
+            preview_mode = "view"
+            view_name = view
+            start_game()
+            hud.visible = false
+            player.invulnerable = 99.0
+            var show_actor := view == "center"
+            player.visible = show_actor
+            for enemy in get_tree().get_nodes_in_group("enemies"):
+                enemy.enabled = false
+                enemy.visible = show_actor
     if "--preview-settings" in args:
         start_game()
         call_deferred("_pause")
@@ -114,75 +137,6 @@ func _ready() -> void:
         var enemies = get_tree().get_nodes_in_group("enemies")
         for enemy in enemies: enemy.enabled = false
         if not enemies.is_empty(): enemies[0].global_position = player.global_position + Vector3(0.55, 0, -1.5)
-
-func _environment() -> void:
-    var env_node = WorldEnvironment.new()
-    var env = Environment.new()
-    env.background_mode = Environment.BG_COLOR
-    env.background_color = Color(0.025, 0.045, 0.07)
-    env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-    env.ambient_light_color = Color(0.40, 0.48, 0.56)
-    env.ambient_light_energy = 0.9
-    env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-    env_node.environment = env
-    add_child(env_node)
-    var sun = DirectionalLight3D.new()
-    sun.rotation_degrees = Vector3(-55, -25, 0)
-    sun.light_color = Color(0.75, 0.83, 1.0)
-    sun.light_energy = 1.0
-    sun.shadow_enabled = false
-    add_child(sun)
-    var red = OmniLight3D.new()
-    red.position = Vector3(-5, 3, -5)
-    red.light_color = Color(1.0, 0.1, 0.16)
-    red.light_energy = 2.0
-    red.omni_range = 12.0
-    add_child(red)
-
-func _material(color: Color, metal: float = 0.0, glow: bool = false) -> StandardMaterial3D:
-    var material = StandardMaterial3D.new()
-    material.albedo_color = color
-    material.metallic = metal
-    material.roughness = 0.65
-    if glow:
-        material.emission_enabled = true
-        material.emission = color
-    return material
-
-func _box(pos: Vector3, size: Vector3, color: Color, metal: float = 0.0, glow: bool = false) -> MeshInstance3D:
-    var mesh = MeshInstance3D.new()
-    var box = BoxMesh.new()
-    box.size = size
-    mesh.mesh = box
-    mesh.material_override = _material(color, metal, glow)
-    mesh.position = pos
-    add_child(mesh)
-    return mesh
-
-func _arena() -> void:
-    var floor_body = StaticBody3D.new()
-    var shape = CollisionShape3D.new()
-    var box = BoxShape3D.new()
-    box.size = Vector3(20, 0.3, 20)
-    shape.shape = box
-    shape.position.y = -0.15
-    floor_body.add_child(shape)
-    add_child(floor_body)
-    _box(Vector3(0, -0.16, 0), Vector3(20, 0.3, 20), Color(0.09, 0.13, 0.17), 0.65)
-    for i in range(-4, 5):
-        _box(Vector3(i * 2, 0.006, 0), Vector3(0.025, 0.012, 19.8), Color(0.24, 0.29, 0.32), 0.4)
-        _box(Vector3(0, 0.007, i * 2), Vector3(19.8, 0.012, 0.025), Color(0.24, 0.29, 0.32), 0.4)
-    for side in [-1, 1]:
-        _box(Vector3(side * 9.7, 0.8, 0), Vector3(0.13, 0.12, 20), Color(0.35, 0.39, 0.42))
-        _box(Vector3(0, 0.8, side * 9.7), Vector3(20, 0.12, 0.13), Color(0.35, 0.39, 0.42))
-        for i in range(-4, 5, 2):
-            _box(Vector3(side * 9.7, 0.4, i * 2), Vector3(0.12, 0.8, 0.12), Color(0.25, 0.29, 0.32))
-            _box(Vector3(i * 2, 0.4, side * 9.7), Vector3(0.12, 0.8, 0.12), Color(0.25, 0.29, 0.32))
-    for i in range(14):
-        var x = -26.0 + i * 4.0
-        var h = 4.0 + float((i * 17) % 9)
-        _box(Vector3(x, h * 0.5 - 2.0, -22), Vector3(3.2, h, 3.0), Color(0.04 + (i % 3) * 0.01, 0.06, 0.08))
-        _box(Vector3(x, h * 0.4 - 2.0, -20.45), Vector3(0.06, h * 0.35, 0.04), Color(0.5, 0.025, 0.04), 0.0, true)
 
 func _make_label(text: String, font_size: int, color: Color = Color.WHITE) -> Label:
     var label = Label.new()
@@ -299,7 +253,7 @@ func _ui() -> void:
     menu = Control.new()
     menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
     layer.add_child(menu)
-    _show_menu("SCARLET VEIL", "NATIVE 3D COMBAT TEST  /  OPERATION NIGHTFALL", "DEPLOY")
+    _show_menu("SCARLET VEIL", "GROUND ZERO  /  TUTORIAL PLAZA", "DEPLOY")
 
 func _show_menu(title: String, subtitle: String, action: String) -> void:
     for child in menu.get_children():
@@ -510,6 +464,11 @@ func _physics_process(delta: float) -> void:
     if timer > 8.0: tip_label.visible = false
 
 func _update_camera(delta: float) -> void:
+    if preview_mode == "view":
+        var pose: Array = view_poses.get(view_name, view_poses["center"])
+        camera.global_position = pose[0]
+        camera.look_at(pose[1], Vector3.UP)
+        return
     if preview_mode == "review":
         var center = player.global_position + Vector3(0, 0.95, 0)
         var offset = Vector3(0, 0.35, 1.9)
@@ -684,7 +643,7 @@ func _on_defeated() -> void:
         joystick._reset()
         player.enabled = false
         hud.visible = false
-        _show_menu("ROOFTOP SECURE", "COMBAT TEST COMPLETE  /  %d SECONDS" % int(timer), "RETRY")
+        _show_menu("PLAZA CLEARED", "COMBAT TEST COMPLETE  /  %d SECONDS" % int(timer), "RETRY")
 
 func _on_health(value: int) -> void:
     health_label.text = "HP  %d" % value
@@ -711,7 +670,7 @@ func _pause() -> void:
     _clear_camera_touches()
     hud.visible = false
     for enemy in get_tree().get_nodes_in_group("enemies"): enemy.enabled = false
-    _show_menu("PAUSED", "RETURN TO THE ROOFTOP WHEN READY", "RESUME")
+    _show_menu("PAUSED", "RETURN TO THE PLAZA WHEN READY", "RESUME")
     menu_action.pressed.disconnect(start_game)
     menu_action.pressed.connect(_resume)
 
