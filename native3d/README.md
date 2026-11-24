@@ -41,6 +41,30 @@ Hair, skirt and sleeve chains are driven by angular springs after authored anima
 ### HUD controls
 Combat HUD buttons are round, glass-style and icon-only (sword = attack, chevrons = dodge, bars = pause; textures in `assets/ui/`, generated in-repo). The joystick is glass too. Touch input is routed centrally in `world.gd::_input`: each finger gets an explicit owner (HUD button, joystick, or camera), so the joystick and the attack/dodge buttons work at the same time. Covered by `tests/touch_camera.gd`.
 
+### Ground Zero tutorial environment
+
+The night blockout arena was replaced by **Ground Zero**, a sunny post-apocalyptic
+plaza built procedurally at runtime by `scripts/ground_zero.gd` from the
+four-direction concept in `docs/ground_zero_reference.png` (all four views are
+one connected world). It has a 26 m open plaza with faded circular markings, a
+ring road, 12 modular damaged buildings with facade textures (generated in-repo
+by `tools/gen_env_textures.py` into `assets/env/`), a broken elevated road, a
+lattice comm tower, three readable billboards ("CLAUDE FOREVER", "HUMANITY WAS
+HERE...", "CLAUDE AI CONTROLS THE WORLD"), abandoned cars and a bus, trees,
+grass and rubble. Aggressive LOD: per-building visibility-range tiers
+(0–34 / 32–70 / 68–170 m) with merged per-district HLOD silhouettes, district
+skyline impostor MultiMeshes, octant-sector grass/rubble MultiMeshes, merged
+same-material static meshes, one shadow-capped sun (48 m, 2 splits, atlas sizes
+capped in `project.godot`), procedural sky + distance fog. Note the
+`gl_compatibility` renderer has no occlusion culling or LightmapGI baking, so
+culling relies on frustum + visibility ranges. `tests/ground_zero.gd` validates
+layout, LOD tiers, landmarks, lighting, instancing, an open plaza and gameplay
+integration; CI captures the four reference views via `--preview-view-*` and a
+software-rendered perf report via `--perf-report`. See `docs/GROUND_ZERO.md` for
+the full LOD/lighting report and honest limitations — **no APK was built and no
+device FPS is claimed** (standing rule); all perf numbers are llvmpipe
+software-rendered CI metrics.
+
 ### Enemy robots
 
 Encounters spawn four CC0 Polygonal Mind robots (one model, role tints): two dark **bruisers** that chase and telegraphed melee-slam (12 damage, red ground ring), and two hovering **gun drones** that hold a 4–8 m band, show a red sight line while charging, and fire dodgeable energy bolts (10 damage, 8.5 m/s). Drones headbutt (8 damage) if you get too close. Robots separate so they do not stack, flash and recoil when hit, and fall over when destroyed. Balance constants are bounded in `enemy.gd`/`enemy_projectile.gd` and covered by `tests/enemy_combat.gd`. Physical-device gameplay feel still needs on-device testing.
