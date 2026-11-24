@@ -43,6 +43,8 @@ var dodge_button: Button
 var pause_button: Button
 var profile_enabled: bool = false
 var profile_time: float = 0.0
+var perf_time: float = 0.0
+var perf_reported: bool = false
 var profile_last_us: int = 0
 var profile_frames: Array[float] = []
 var profile_reported: bool = false
@@ -414,6 +416,12 @@ func start_game() -> void:
 # Optional debug-only benchmark enabled by the project profile setting.
 # Wall-frame timing includes vsync and all game work, not just the solver.
 func _process(delta: float) -> void:
+    # CI-only software-rendered perf report (xvfb/llvmpipe); never a device number.
+    if not perf_reported and playing and "--perf-report" in OS.get_cmdline_user_args():
+        perf_time += delta
+        if perf_time >= 2.5:
+            perf_reported = true
+            _print_perf_report()
     if not profile_enabled or profile_reported: return
     if not playing:
         profile_last_us = 0
@@ -433,6 +441,29 @@ func _process(delta: float) -> void:
         print("SECONDARY_PROFILE frames=%d avg_frame_ms=%.2f p50_frame_ms=%.2f p95_frame_ms=%.2f p99_frame_ms=%.2f solver_steps=%d avg_solver_us=%.1f max_solver_us=%d quality=%d shadow_captures=%d avg_shadow_capture_us=%.1f godot_static_mb=%.1f" % [profile_frames.size(), total / profile_frames.size(), p50, p95, p99, player.profile_secondary_steps, float(player.profile_secondary_us) / maxf(1, player.profile_secondary_steps), player.profile_secondary_max_us, player.secondary_motion.quality, player.profile_shadow_count, float(player.profile_shadow_us) / maxf(1, player.profile_shadow_count), Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0])
         profile_reported = true
         player.profile_secondary = false
+
+func _print_perf_report() -> void:
+    var mesh_instances := 0
+    var multimesh_instances := 0
+    var stack: Array = [self]
+    while not stack.is_empty():
+        var node: Node = stack.pop_back()
+        if node is MeshInstance3D: mesh_instances += 1
+        if node is MultiMeshInstance3D: multimesh_instances += 1
+        for child in node.get_children(): stack.append(child)
+    print("PERF_REPORT note=software-rendered xvfb/llvmpipe; NOT a physical Galaxy M21 measurement")
+    print("PERF fps=%.1f process_ms=%.2f objects=%d draw_calls=%d primitives=%d video_mem_mb=%.1f static_mb=%.1f nodes=%d mesh_instances=%d multimesh=%d" % [
+        Performance.get_monitor(Performance.TIME_FPS),
+        Performance.get_monitor(Performance.TIME_PROCESS) * 1000.0,
+        int(Performance.get_monitor(Performance.RENDER_TOTAL_OBJECTS_IN_FRAME)),
+        int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)),
+        int(Performance.get_monitor(Performance.RENDER_TOTAL_PRIMITIVES_IN_FRAME)),
+        Performance.get_monitor(Performance.RENDER_VIDEO_MEM_USED) / 1048576.0,
+        Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0,
+        int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+        mesh_instances,
+        multimesh_instances,
+    ])
 
 func _physics_process(delta: float) -> void:
     if not playing:

@@ -54,6 +54,21 @@ jobs:
             echo "::error::$(grep -E 'SCRIPT ERROR|^ERROR:' /tmp/render.log | head -8 | tr '\n' ' ')"
             exit 1
           fi
+      - name: Software-rendered perf report
+        run: |
+          xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --quit-after 240 -- --smoke-play --perf-report 2>&1 | tee /tmp/perf.log
+          if grep -E 'SCRIPT ERROR|^ERROR:' /tmp/perf.log; then
+            echo "::error::perf run had script errors"
+            exit 1
+          fi
+      - name: Store perf report
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/perf.log","rb").read()).decode(),"encoding":"base64"}))' > /tmp/perf-blob.json
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/perf-blob.json --jq .sha)
+          echo "::warning title=Perf report::$sha"
       - name: Store screenshot for review
         env:
           GH_TOKEN: ${{ github.token }}
@@ -108,7 +123,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/wiggle.log /tmp/enemy-combat.log /tmp/render.log 2>/dev/null > /tmp/diagnostics.txt || true
+          cat /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/wiggle.log /tmp/enemy-combat.log /tmp/render.log /tmp/perf.log 2>/dev/null > /tmp/diagnostics.txt || true
           python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/diagnostics.txt","rb").read()).decode(),"encoding":"base64"}))' > /tmp/diagnostics.json
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/diagnostics.json --jq .sha)
           echo "::warning title=Diagnostics::$sha"
