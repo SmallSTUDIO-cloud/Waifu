@@ -88,12 +88,12 @@ func run_test() -> void:
         var ph: float = TAU * step / 24.0
         player._sprint_pose(ph)
         phases.append(ph)
-        var a_l = _bone_euler(player, arm_l)
-        var a_r = _bone_euler(player, arm_r)
-        var e_l = _bone_euler(player, elbow_l)
-        var e_r = _bone_euler(player, elbow_r)
-        var l_l = _bone_euler(player, leg_l)
-        var l_r = _bone_euler(player, leg_r)
+        var a_l: Vector3 = _bone_euler(player, arm_l)
+        var a_r: Vector3 = _bone_euler(player, arm_r)
+        var e_l: Vector3 = _bone_euler(player, elbow_l)
+        var e_r: Vector3 = _bone_euler(player, elbow_r)
+        var l_l: Vector3 = _bone_euler(player, leg_l)
+        var l_r: Vector3 = _bone_euler(player, leg_r)
         # Arms compact: no wide z spread like the old pose (±0.30).
         if absf(a_l.z) > 0.15 or absf(a_r.z) > 0.15:
             _fail("sprint arm spread too wide: z=" + str(a_l.z) + "/" + str(a_r.z))
