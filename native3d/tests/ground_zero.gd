@@ -74,7 +74,7 @@ func run_test() -> void:
     await process_frame
     var enemies = get_nodes_in_group("enemies")
     check(enemies.size() == 4, "expected four enemies, got %d" % enemies.size())
-    scene.player.control = Vector2(0, -1)
+    scene.joystick.direction = Vector2(0, -1)
     var p0: Vector3 = scene.player.position
     for i in range(30):
         await physics_frame

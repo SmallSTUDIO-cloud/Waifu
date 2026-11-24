@@ -301,7 +301,7 @@ func _buildings() -> void:
         district_nodes[dname] = dn
     var n := 0
     var angle := 8.0
-    while angle < 360.0 and n < 14:
+    while angle < 360.0 and n < 16:
         var mod90 := fmod(angle, 90.0)
         var near_cardinal := minf(mod90, 90.0 - mod90)
         if near_cardinal > 13.0:  # keep the four road mouths open
@@ -316,7 +316,7 @@ func _buildings() -> void:
                 dname = "East_District" if pos.x > 0.0 else "West_District"
             _building(district_nodes[dname], pos, Vector3(size, floors * 3.0, size), floors, variant, float(n % 3) * 0.33, angle)
             n += 1
-        angle += 24.0
+        angle += 20.0
 
 
 func _building(parent: Node, pos: Vector3, size: Vector3, floors: int, variant: int, damage: float, angle: float) -> void:
