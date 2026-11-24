@@ -140,6 +140,9 @@ func run_test() -> void:
     check(not scene.player.sprinting, "sprint did not release on small stick deflection")
     check(not scene.joystick.sprinting, "joystick glow did not clear")
     scene.joystick.direction = Vector2(0, -1)
+    # Re-place the camera: the real-delta sprint ticks above orbited it away
+    # from the +x offset, and delta 0 keeps it fixed during this tick.
+    scene.camera.global_position = scene.player.global_position + Vector3(5, 3, 0)
     scene._physics_process(0.0)
     scene.player.dash_cooldown = 0.0
     scene.player.dash_time = 0.0
