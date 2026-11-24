@@ -2,8 +2,12 @@ name: Android prerelease APK
 # Builds the signed release APK on a GitHub-hosted runner and publishes it as a
 # NEW prerelease (v0.4.1-native3d-test). The existing v0.4.0-native3d-test
 # prerelease/tag is never deleted or modified by this workflow.
-# Trigger: Actions tab -> "Android prerelease APK" -> Run workflow (manual only).
+# Trigger: Actions tab -> Run workflow (manual), or any push that touches this
+# file (same pattern as native-emulator.yml, so the branch can self-launch it).
 on:
+  push:
+    paths:
+      - '.github/workflows/android-prerelease.yml'
   workflow_dispatch:
 permissions:
   contents: write
