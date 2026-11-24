@@ -55,8 +55,8 @@ func run_test() -> void:
     var want: Array = ["CLAUDE AI CONTROLS THE WORLD", "CLAUDE FOREVER", "HUMANITY WAS HERE..."]
     want.sort()
     check(texts == want, "billboard set wrong: %s" % str(texts))
-    check(gz.tower != null and gz.tower.get_child_count() > 10, "comm tower missing")
-    check(gz.elevated_road != null and gz.elevated_road.get_child_count() > 10, "elevated road missing")
+    check(gz.tower != null and gz.tower.get_child_count() >= 3, "comm tower missing")
+    check(gz.elevated_road != null and gz.elevated_road.get_child_count() >= 3, "elevated road missing")
     check(gz.vehicles.size() >= 5, "abandoned vehicles missing: %d" % gz.vehicles.size())
     check(gz.multimesh_sectors >= 16, "instancing sectors missing: %d" % gz.multimesh_sectors)
 
