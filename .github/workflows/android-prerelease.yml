@@ -1,0 +1,152 @@
+name: Android prerelease APK
+# Builds the signed release APK on a GitHub-hosted runner and publishes it as a
+# NEW prerelease (v0.4.1-native3d-test). The existing v0.4.0-native3d-test
+# prerelease/tag is never deleted or modified by this workflow.
+# Trigger: Actions tab -> "Android prerelease APK" -> Run workflow (manual only).
+on:
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      RELEASE_TAG: v0.4.1-native3d-test
+      APK_NAME: scarlet-veil-3d-v0.4.1-test.apk
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Cache Godot and Android templates
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/bin/godot
+            ~/.local/share/godot/export_templates/4.4.1.stable
+          key: godot-4.4.1-android-profile-v1
+      - name: Install Godot and Android templates
+        run: |
+          mkdir -p "$HOME/.local/bin" "$HOME/.local/share/godot/export_templates/4.4.1.stable"
+          if [ ! -x "$HOME/.local/bin/godot" ]; then
+            curl -fsSL -o /tmp/godot.zip https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_linux.x86_64.zip
+            unzip -p /tmp/godot.zip Godot_v4.4.1-stable_linux.x86_64 > "$HOME/.local/bin/godot"
+            chmod +x "$HOME/.local/bin/godot"
+          fi
+          for tpl in android_debug.apk android_release.apk; do
+            target="$HOME/.local/share/godot/export_templates/4.4.1.stable/$tpl"
+            if [ ! -s "$target" ]; then
+              curl -fsSL -o /tmp/templates.tpz https://github.com/godotengine/godot-builds/releases/download/4.4.1-stable/Godot_v4.4.1-stable_export_templates.tpz
+              unzip -p /tmp/templates.tpz "templates/$tpl" > "$target"
+              rm -f /tmp/templates.tpz
+            fi
+          done
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Configure signing and editor settings
+        run: |
+          export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> "$GITHUB_ENV"
+          mkdir -p "$HOME/.android" "$HOME/.config/godot"
+          keytool -genkeypair -keystore "$HOME/.android/debug.keystore" -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Android Debug,O=Android,C=US'
+          keytool -genkeypair -keystore "$HOME/.android/release.keystore" -storepass android -keypass android -alias releasetest -keyalg RSA -keysize 2048 -validity 10000 -dname 'CN=Scarlet Veil Test,O=SmallStudio,C=BD'
+          cat > "$HOME/.config/godot/editor_settings-4.tres" <<SETTINGS
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "$ANDROID_HOME"
+          export/android/java_sdk_path = "$JAVA_HOME"
+          export/android/debug_keystore = "$HOME/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          export/android/release_keystore = "$HOME/.android/release.keystore"
+          export/android/release_keystore_user = "releasetest"
+          export/android/release_keystore_pass = "android"
+          SETTINGS
+      - name: Import project
+        run: |
+          godot --headless --path native3d --editor --import --quit 2>&1 | tail -5
+      - name: Export signed release APK
+        run: |
+          set -o pipefail
+          godot --headless --path native3d --export-release Android "$RUNNER_TEMP/$APK_NAME" 2>&1 | tee /tmp/android-export-release.log
+          test -s "$RUNNER_TEMP/$APK_NAME"
+      - name: Verify and re-sign APK
+        run: |
+          set -e
+          test "$(stat -c %s "$RUNNER_TEMP/$APK_NAME")" -gt 20000000
+          unzip -l "$RUNNER_TEMP/$APK_NAME" | grep -q 'AndroidManifest.xml'
+          unzip -l "$RUNNER_TEMP/$APK_NAME" | grep -q 'resources.arsc'
+          unzip -l "$RUNNER_TEMP/$APK_NAME" | grep -q 'classes.dex'
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          ZIPALIGN=$(ls "$ANDROID_HOME"/build-tools/*/zipalign 2>/dev/null | sort -V | tail -1)
+          "$ZIPALIGN" -c -p 4 "$RUNNER_TEMP/$APK_NAME" && echo "zipalign OK"
+          "$APKSIGNER" sign --ks "$HOME/.android/release.keystore" --ks-key-alias releasetest --ks-pass pass:android --key-pass pass:android --v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true --out "$RUNNER_TEMP/$APK_NAME.signed" "$RUNNER_TEMP/$APK_NAME"
+          mv "$RUNNER_TEMP/$APK_NAME.signed" "$RUNNER_TEMP/$APK_NAME"
+          "$APKSIGNER" verify --verbose --print-certs "$RUNNER_TEMP/$APK_NAME"
+          echo "release_apk_bytes=$(stat -c %s "$RUNNER_TEMP/$APK_NAME")" >> "$GITHUB_ENV"
+          ls -lh "$RUNNER_TEMP"/*.apk
+      - name: Upload APK as workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scarlet-veil-3d-prerelease-apk
+          path: ${{ runner.temp }}/${{ env.APK_NAME }}
+          retention-days: 30
+      - name: Emulator smoke test (install + launch release APK)
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: default
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swangle_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -e
+            adb wait-for-device
+            adb shell input keyevent 82
+            adb install "$RUNNER_TEMP/$APK_NAME"
+            adb shell pm clear com.smallstudio.scarletveil3d > /dev/null || true
+            adb logcat -c
+            adb shell am start -W -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p com.smallstudio.scarletveil3d
+            sleep 20
+            adb shell pidof com.smallstudio.scarletveil3d || { echo '::error::Release APK did not start on emulator'; exit 1; }
+            adb exec-out screencap -p > /tmp/android-release.png
+            adb shell input tap 320 155 && sleep 2 && adb shell input swipe 35 280 35 210 2500 && adb shell input tap 590 280 && sleep 6
+            adb shell pidof com.smallstudio.scarletveil3d || { echo '::error::Release APK crashed during gameplay'; exit 1; }
+            adb logcat -d -v brief > /tmp/android-release.log
+            if grep -q 'FATAL EXCEPTION' /tmp/android-release.log; then cat /tmp/android-release.log; exit 1; fi
+            python3 -c 'from PIL import Image; im=Image.open("/tmp/android-release.png").convert("RGB"); c=len(im.getcolors(im.width*im.height) or []); print("frame colors:", c); assert c > 10, "emulator frame blank"'
+            echo '::notice title=Release APK::installed, launched and survived scripted input on emulator (API 30)'
+      - name: Publish new prerelease with APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Only ever touch OUR new tag; v0.4.0-native3d-test is left alone.
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 && gh release delete "$RELEASE_TAG" --yes || true
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$RELEASE_TAG" >/dev/null 2>&1 || true
+          cat > /tmp/release-notes.md <<NOTES
+          ## Test build for phone playtesting (v0.4.1 prerelease)
+          - Signed with a CI test keystore (sideload; not a Play Store key).
+          - arm64-v8a + x86_64. Enable "Install unknown apps" for your browser/file manager.
+          - Includes: Ground Zero tutorial environment, reworked anime sprint, touch camera (drag to orbit, pinch to zoom), enemy robots, sword combat with dodge.
+          - Verified on the Android emulator (API 30, software rendering) by this workflow; physical-device FPS not yet measured.
+          - Source commit: ${GITHUB_SHA}
+          - APK size: ${release_apk_bytes} bytes
+          NOTES
+          gh release create "$RELEASE_TAG" "$RUNNER_TEMP/$APK_NAME" \
+            --prerelease \
+            --target "${GITHUB_SHA}" \
+            --title "Scarlet Veil 3D v0.4.1 - test APK (prerelease)" \
+            --notes "$(cat /tmp/release-notes.md)"
+          gh release view "$RELEASE_TAG" --json assets,tagName,publishedAt,url --jq '{tag: .tagName, url, published: .publishedAt, assets: [.assets[] | {name, size, download: .browser_download_url}]}'
+      - name: Store emulator screenshot
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -s /tmp/android-release.png ]; then
+            python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/android-release.png","rb").read()).decode(),"encoding":"base64"}))' > /tmp/blob.json
+            sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/blob.json --jq .sha)
+            echo "::warning title=Release APK emulator screenshot::$sha"
+          fi
