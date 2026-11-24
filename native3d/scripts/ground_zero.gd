@@ -491,11 +491,11 @@ func _landmarks() -> void:
     _solid(Vector3(2.0, 12.0, 22.0), Vector3(3.4, 24.0, 3.4))
     # the three readable billboards, oriented for their reference views:
     # East view (camera at +X) shows CLAUDE FOREVER on the left (+Z) of the west side
-    _billboard(lm, Vector3(-23.0, 8.0, 10.0), -PI / 2.0, "billboard_forever.png", "CLAUDE FOREVER", Vector3(9.0, 4.5, 0.3))
+    _billboard(lm, Vector3(-23.0, 8.0, 10.0), PI / 2.0, "billboard_forever.png", "CLAUDE FOREVER", Vector3(9.0, 4.5, 0.3))
     # West view (camera at -X) shows HUMANITY WAS HERE... on the right (+Z) of the east side
-    _billboard(lm, Vector3(23.0, 9.0, 8.0), PI / 2.0, "billboard_humanity.png", "HUMANITY WAS HERE...", Vector3(9.0, 4.5, 0.3))
+    _billboard(lm, Vector3(23.0, 9.0, 8.0), -PI / 2.0, "billboard_humanity.png", "HUMANITY WAS HERE...", Vector3(9.0, 4.5, 0.3))
     # South view (camera at +Z) shows CLAUDE AI CONTROLS THE WORLD on the right (+X) of the north side
-    _billboard(lm, Vector3(10.0, 10.0, -23.0), PI, "billboard_controls.png", "CLAUDE AI CONTROLS THE WORLD", Vector3(10.0, 5.0, 0.3))
+    _billboard(lm, Vector3(10.0, 10.0, -23.0), 0.0, "billboard_controls.png", "CLAUDE AI CONTROLS THE WORLD", Vector3(10.0, 5.0, 0.3))
 
 
 # ---------------------------------------------------------------- vehicles

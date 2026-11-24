@@ -95,7 +95,7 @@ def facade_cell(path, seed, style):
     # big damage hole for style 3
     if style == 3 and rnd.random() < 0.6:
         cx, cy = rnd.randrange(40, 200), rnd.randrange(40, 180)
-        pts = [(cx + rnd.randrange(-45, 45), cy + rnd.randrange(-35, 35)) for _ in range(7)]
+        pts = [(cx + rnd.randrange(-24, 24), cy + rnd.randrange(-18, 18)) for _ in range(7)]
         d.polygon(pts, fill=(14, 13, 12, 255))
         for _ in range(4):  # exposed rebar
             d.line([(cx + rnd.randrange(-30, 30), cy + rnd.randrange(-25, 25)),
