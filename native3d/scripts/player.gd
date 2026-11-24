@@ -43,6 +43,7 @@ var sprint_blend: float = 0.0
 var enabled: bool = false
 var pose_blend: float = 1.0
 var gait_phase: float = 0.0
+var gait_rate: float = 0.0
 var turn_lean: float = 0.0
 var attack_buffered: bool = false
 var dash_direction: Vector3 = Vector3.FORWARD
@@ -440,25 +441,37 @@ func _pose_sprint(bone_name: String, angles: Vector3) -> void:
         var target: Quaternion = bone_rest[index] * Quaternion.from_euler(angles)
         skeleton.set_bone_pose_rotation(index, skeleton.get_bone_pose_rotation(index).slerp(target, sprint_blend))
 
-func _sprint_pose(gait: float, lift_l: float, lift_r: float) -> void:
-    # Athletic sprint: low driving hips, torso pitched forward, head up,
-    # arms pumping in opposition to the legs with bent elbows, trailing leg
-    # extended behind with the knee bent (heel kicked up), driving leg
-    # reaching forward.
-    _pose_sprint("J_Bip_C_Hips", Vector3(0.34, gait * 0.05, 0))
-    _pose_sprint("J_Bip_C_Spine", Vector3(-0.36, gait * 0.04, 0))
-    _pose_sprint("J_Bip_C_Chest", Vector3(-0.28, -gait * 0.05, 0))
-    _pose_sprint("J_Bip_C_Head", Vector3(0.14, 0, 0))
-    _pose_sprint("J_Bip_L_UpperArm", Vector3(0.55 - 0.70 * gait, 0, 0.30))
-    _pose_sprint("J_Bip_R_UpperArm", Vector3(0.55 + 0.70 * gait, 0, -0.30))
-    _pose_sprint("J_Bip_L_LowerArm", Vector3(1.30, 0, 0.12))
-    _pose_sprint("J_Bip_R_LowerArm", Vector3(1.30, 0, -0.12))
-    _pose_sprint("J_Bip_L_UpperLeg", Vector3(1.05 * gait, 0, -0.07))
-    _pose_sprint("J_Bip_R_UpperLeg", Vector3(-1.05 * gait, 0, 0.07))
-    _pose_sprint("J_Bip_L_LowerLeg", Vector3(-0.35 - 0.90 * lift_l, 0, 0))
-    _pose_sprint("J_Bip_R_LowerLeg", Vector3(-0.35 - 0.90 * lift_r, 0, 0))
-    _pose_sprint("J_Bip_L_Foot", Vector3(0.45 * lift_l, 0, 0))
-    _pose_sprint("J_Bip_R_Foot", Vector3(0.45 * lift_r, 0, 0))
+func _sprint_pose(phase: float) -> void:
+    # Grounded anime sprint: one full stride per TAU of `phase`, left foot
+    # plants at phase 0. Thighs swing about the hip; the knee flexes hardest
+    # mid-swing and is near-straight at contact; arms pump in opposition to
+    # the legs with bent elbows along a compact path; pelvis yaws/rolls
+    # slightly while the chest counter-rotates and the head stays level.
+    # Only J_Bip_* body bones are written here — WiggleBone owns the
+    # HairJoint*/J_Sec_* hair/skirt/sleeve chains, so no double animation.
+    var s := sin(phase)
+    var c := cos(phase)
+    var thigh := 0.72 * c
+    var knee_l := 0.14 + 1.50 * pow(maxf(0.0, -s), 1.4)
+    var knee_r := 0.14 + 1.50 * pow(maxf(0.0, s), 1.4)
+    var foot_l := 0.50 * pow(maxf(0.0, -s), 1.2)
+    var foot_r := 0.50 * pow(maxf(0.0, s), 1.2)
+    _pose_sprint("J_Bip_L_UpperLeg", Vector3(thigh, 0, -0.05))
+    _pose_sprint("J_Bip_R_UpperLeg", Vector3(-thigh, 0, 0.05))
+    _pose_sprint("J_Bip_L_LowerLeg", Vector3(-knee_l, 0, 0))
+    _pose_sprint("J_Bip_R_LowerLeg", Vector3(-knee_r, 0, 0))
+    _pose_sprint("J_Bip_L_Foot", Vector3(foot_l, 0, 0))
+    _pose_sprint("J_Bip_R_Foot", Vector3(foot_r, 0, 0))
+    var arm := 0.50 * c
+    _pose_sprint("J_Bip_L_UpperArm", Vector3(0.10 - arm, 0, 0.07))
+    _pose_sprint("J_Bip_R_UpperArm", Vector3(0.10 + arm, 0, -0.07))
+    _pose_sprint("J_Bip_L_LowerArm", Vector3(1.15 + 0.12 * s, 0, 0.10))
+    _pose_sprint("J_Bip_R_LowerArm", Vector3(1.15 - 0.12 * s, 0, -0.10))
+    _pose_sprint("J_Bip_C_Hips", Vector3(0.30, -0.12 * c, 0.05 * s))
+    _pose_sprint("J_Bip_C_Spine", Vector3(-0.20, 0.06 * s, 0))
+    _pose_sprint("J_Bip_C_Chest", Vector3(-0.16, 0.10 * c, 0))
+    _pose_sprint("J_Bip_C_Head", Vector3(0.12, -0.06 * c, 0))
+
 
 func _animate(delta: float) -> void:
     if not skeleton:
@@ -467,18 +480,26 @@ func _animate(delta: float) -> void:
     pose_blend = 1.0 - exp(-delta * 18.0)
     sprint_blend = lerpf(sprint_blend, 1.0 if sprinting else 0.0, 1.0 - exp(-delta * 10.0))
     # Phase follows actual ground speed, so a slow stick deflection doesn't
-    # produce a fast running cycle while the character barely moves.
-    gait_phase = fposmod(gait_phase + delta * speed_ratio * (12.5 if sprinting else 9.5), TAU)
+    # produce a fast running cycle while the character barely moves, and a
+    # sprint (which exceeds SPEED) cycles the stride proportionally faster
+    # instead of gliding over the floor. Movement stays code-driven (no root
+    # motion), so the animation must match velocity, never the reverse.
+    var horiz := Vector2(velocity.x, velocity.z).length()
+    gait_rate = maxf(speed_ratio * 9.5, clampf(horiz * 3.05, 0.0, 18.0))
+    gait_phase = fposmod(gait_phase + delta * gait_rate, TAU)
     if motion_driver:
         var attack_progress = 1.0 - attack_timer / ATTACK_DURATION if attack_timer > 0.0 else -1.0
         var dash_progress = 1.0 - dash_time / DASH_DURATION if dash_time > 0.0 else -1.0
         motion_driver.update(delta, speed_ratio, attack_progress, dash_progress, combo)
         var dash_weight = sin(PI * dash_progress) if dash_progress >= 0.0 else 0.0
-        model_root.rotation.x = lerpf(model_root.rotation.x, -0.22 * dash_weight - 0.26 * sprint_blend, pose_blend)
+        model_root.rotation.x = lerpf(model_root.rotation.x, -0.22 * dash_weight - 0.16 * sprint_blend, pose_blend)
         model_root.rotation.z = lerpf(model_root.rotation.z, turn_lean * 0.5, pose_blend)
+        # Two vertical CoM bobs per stride (one per footfall) so the center of
+        # mass reads as weight, not gliding.
+        var bob_target := 0.05 * (0.5 - 0.5 * cos(2.0 * gait_phase)) * sprint_blend
+        model_root.position.y = lerpf(model_root.position.y, bob_target, pose_blend)
         if sprint_blend > 0.01:
-            var gait = sin(gait_phase)
-            _sprint_pose(gait, pow(maxf(0.0, -gait), 1.2), pow(maxf(0.0, gait), 1.2))
+            _sprint_pose(gait_phase)
     # Sprint wind: blow hair/skirt/sleeves backward and slightly up so the
     # cloth visibly lifts while running fast.
     if wiggle:
@@ -515,11 +536,13 @@ func _animate(delta: float) -> void:
         _pose("J_Bip_R_UpperArm", Vector3(-0.32 * swing if combo == 4 else -0.10 * swing, -0.30 - stride * 0.12 + swing * 1.15 * side, -1.08 + arm_raise * (1.20 if combo == 4 else 0.95)))
         _pose("J_Bip_R_LowerArm", Vector3(0, 0.25 + swing * 0.70 * side, -0.38 - 0.25 * dash - 0.15 * arm_raise))
         _pose("J_Bip_R_Hand", Vector3(0.10, -0.15 + swing * 0.30 * side, 0.12))
+        if sprint_blend > 0.01:
+            _sprint_pose(gait_phase)
     # While moving, tilt the blade outward and slightly down so the swing
     # carries it clear of the chest scarf instead of through it.
     if sword_grip:
         var walk = speed_ratio
-        var grip_target = Vector3(grip_base_rotation.x - 6.0 * walk, grip_base_rotation.y + 4.0 * walk, grip_base_rotation.z + 30.0 * walk)
+        var grip_target = Vector3(grip_base_rotation.x - 6.0 * walk, grip_base_rotation.y + 4.0 * walk, grip_base_rotation.z + 30.0 * walk + 12.0 * sprint_blend)
         sword_grip.rotation_degrees = sword_grip.rotation_degrees.lerp(grip_target, 1.0 - exp(-delta * 14.0))
     # Aura breathes at idle and flares during the swing.
     if aura_material and aura_mesh:

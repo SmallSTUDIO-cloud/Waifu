@@ -94,12 +94,22 @@ func _ready() -> void:
     if player.motion_driver:
         player.motion_driver.use_formal_walk = not "--legacy-walk" in args
         player.motion_driver.use_sword_dash = not "--legacy-dash" in args
-    if "--smoke-play" in args or "--preview-move" in args or "--preview-sprint" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args or "--preview-grip" in args:
+    if "--smoke-play" in args or "--preview-move" in args or "--preview-sprint" in args or "--preview-sprint-accel" in args or "--preview-sprint-decel" in args or "--preview-sprint-front" in args or "--preview-sprint-side" in args or "--preview-sprint-rear" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args or "--preview-grip" in args:
         start_game()
     for side in ["front", "side", "rear"]:
         if "--preview-review-" + side in args:
             review_camera = side
             preview_mode = "review"
+            start_game()
+            hud.visible = false
+            player.invulnerable = 99.0
+            for enemy in get_tree().get_nodes_in_group("enemies"):
+                enemy.enabled = false
+                enemy.visible = false
+    for side in ["front", "side", "rear"]:
+        if "--preview-sprint-" + side in args:
+            review_camera = side
+            preview_mode = "sprint"
             start_game()
             hud.visible = false
             player.invulnerable = 99.0
@@ -123,6 +133,8 @@ func _ready() -> void:
         call_deferred("_pause")
     if "--preview-move" in args: preview_mode = "move"
     if "--preview-sprint" in args: preview_mode = "sprint"
+    if "--preview-sprint-accel" in args: preview_mode = "sprint_accel"
+    if "--preview-sprint-decel" in args: preview_mode = "sprint_decel"
     if "--preview-attack" in args: preview_mode = "attack"
     if "--preview-dodge" in args: preview_mode = "dodge"
     if "--preview-combo" in args: preview_mode = "combo"
@@ -445,6 +457,17 @@ func _physics_process(delta: float) -> void:
         player.control = Vector2(0.0, -1.0)
         player.sprint_requested = true
         joystick.sprinting = true
+    if preview_mode == "sprint_accel":
+        # Walk first, then push the stick fully forward: captures the
+        # walk -> sprint blend with the pose lerping in, not a snap.
+        player.control = Vector2(0.0, -1.0)
+        player.sprint_requested = timer >= 1.2
+        joystick.sprinting = player.sprint_requested
+    if preview_mode == "sprint_decel":
+        # Sprint, then release the stick: captures the sprint -> idle blend.
+        player.sprint_requested = timer < 1.6
+        joystick.sprinting = player.sprint_requested
+        player.control = Vector2(0.0, -1.0) if timer < 1.6 else Vector2.ZERO
     if preview_mode == "review":
         player.control = Vector2(0.0, -0.65) if timer < 0.9 else Vector2.ZERO
         if timer > 1.1 and not review_attack:
@@ -469,7 +492,7 @@ func _update_camera(delta: float) -> void:
         camera.global_position = pose[0]
         camera.look_at(pose[1], Vector3.UP)
         return
-    if preview_mode == "review":
+    if preview_mode == "review" or (preview_mode == "sprint" and review_camera != ""):
         var center = player.global_position + Vector3(0, 0.95, 0)
         var offset = Vector3(0, 0.35, 1.9)
         if review_camera == "front": offset = Vector3(0, 0.35, -1.9)
