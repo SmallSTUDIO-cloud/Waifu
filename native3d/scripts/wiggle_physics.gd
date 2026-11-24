@@ -13,6 +13,7 @@ const WiggleProps = preload("res://addons/wigglebone/wiggle_rotation_properties_
 var skeleton: Skeleton3D
 var modifiers: Array[Dictionary] = []
 var active: bool = false
+var wind: Vector3 = Vector3.ZERO
 
 func setup(skel: Skeleton3D) -> void:
 	skeleton = skel
@@ -86,6 +87,11 @@ func set_active(value: bool) -> void:
 	active = value
 	for entry in modifiers:
 		entry.mod.influence = 1.0 if value else 0.0
+
+func set_wind(value: Vector3) -> void:
+    wind = value
+    for entry in modifiers:
+        entry.mod.force_global = value
 
 func reset_all() -> void:
 	for entry in modifiers:

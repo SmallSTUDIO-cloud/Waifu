@@ -81,7 +81,7 @@ func _ready() -> void:
     if player.motion_driver:
         player.motion_driver.use_formal_walk = not "--legacy-walk" in args
         player.motion_driver.use_sword_dash = not "--legacy-dash" in args
-    if "--smoke-play" in args or "--preview-move" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args or "--preview-grip" in args:
+    if "--smoke-play" in args or "--preview-move" in args or "--preview-sprint" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args or "--preview-grip" in args:
         start_game()
     for side in ["front", "side", "rear"]:
         if "--preview-review-" + side in args:
@@ -97,6 +97,7 @@ func _ready() -> void:
         start_game()
         call_deferred("_pause")
     if "--preview-move" in args: preview_mode = "move"
+    if "--preview-sprint" in args: preview_mode = "sprint"
     if "--preview-attack" in args: preview_mode = "attack"
     if "--preview-dodge" in args: preview_mode = "dodge"
     if "--preview-combo" in args: preview_mode = "combo"
@@ -443,6 +444,9 @@ func _physics_process(delta: float) -> void:
     if Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP): keyboard.y -= 1.0
     if Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN): keyboard.y += 1.0
     var input_dir = (joystick.direction + keyboard).limit_length(1.0)
+    # Push the stick far forward (up) to sprint.
+    player.sprint_requested = input_dir.length() > player.SPRINT_MIN_STICK and input_dir.y < player.SPRINT_MIN_UP
+    joystick.sprinting = player.sprinting
     # Movement and dodge remain screen-relative after the camera orbits.
     if preview_mode == "":
         var back = camera.global_position - player.global_position
@@ -452,6 +456,10 @@ func _physics_process(delta: float) -> void:
     else:
         player.control = input_dir
     if preview_mode == "move": player.control = Vector2(0.0, -1.0)
+    if preview_mode == "sprint":
+        player.control = Vector2(0.0, -1.0)
+        player.sprint_requested = true
+        joystick.sprinting = true
     if preview_mode == "review":
         player.control = Vector2(0.0, -0.65) if timer < 0.9 else Vector2.ZERO
         if timer > 1.1 and not review_attack:

@@ -10,6 +10,9 @@ const SWORD_TRAIL = preload("res://scripts/sword_trail.gd")
 const WIGGLE = preload("res://scripts/wiggle_physics.gd")
 const AUTHORED_MOTION = preload("res://scripts/authored_motion.gd")
 const SPEED: float = 2.8
+const SPRINT_SPEED: float = 5.4
+const SPRINT_MIN_STICK: float = 0.86
+const SPRINT_MIN_UP: float = -0.55
 const DASH_SPEED: float = 10.0
 const ATTACK_DURATION: float = 0.58
 const DASH_DURATION: float = 0.27
@@ -34,6 +37,9 @@ var wiggle: RefCounted
 var physics_quality: int = 2
 var visual_time: float = 0.0
 var speed_ratio: float = 0.0
+var sprint_requested: bool = false
+var sprinting: bool = false
+var sprint_blend: float = 0.0
 var enabled: bool = false
 var pose_blend: float = 1.0
 var gait_phase: float = 0.0
@@ -334,7 +340,8 @@ func _physics_process(delta: float) -> void:
     input_dir = input_dir.limit_length(1.0)
     if dash_time <= 0.0 and input_dir.length_squared() > 0.01:
         facing = input_dir.normalized()
-    var speed = DASH_SPEED if dash_time > 0.0 else SPEED * (0.45 if attack_timer > 0.0 else 1.0)
+    sprinting = sprint_requested and dash_time <= 0.0 and attack_timer <= 0.0
+    var speed = DASH_SPEED if dash_time > 0.0 else (SPRINT_SPEED if sprinting else SPEED * (0.45 if attack_timer > 0.0 else 1.0))
     var motion = dash_direction if dash_time > 0.0 else input_dir
     var target_velocity = motion * speed
     var acceleration: float = 42.0 if dash_time > 0.0 else (21.0 if input_dir.length_squared() > 0.01 else 28.0)
@@ -425,21 +432,60 @@ func _attack_pose() -> float:
         return lerpf(-0.65, 1.0, smoothstep(0.30, 0.62, t))
     return 1.0 - smoothstep(0.62, 1.0, t)
 
+func _pose_sprint(bone_name: String, angles: Vector3) -> void:
+    # Sprint pose layers on top of the authored walk: slerp toward it by
+    # sprint_blend so it fades in/out instead of snapping.
+    var index: int = bone_indices.get(bone_name, -1)
+    if index >= 0 and bone_rest.has(index):
+        var target: Quaternion = bone_rest[index] * Quaternion.from_euler(angles)
+        skeleton.set_bone_pose_rotation(index, skeleton.get_bone_pose_rotation(index).slerp(target, sprint_blend))
+
+func _sprint_pose(gait: float, lift_l: float, lift_r: float) -> void:
+    # Athletic sprint: low driving hips, torso pitched forward, head up,
+    # arms pumping in opposition to the legs with bent elbows, trailing leg
+    # extended behind with the knee bent (heel kicked up), driving leg
+    # reaching forward.
+    _pose_sprint("J_Bip_C_Hips", Vector3(0.34, gait * 0.05, 0))
+    _pose_sprint("J_Bip_C_Spine", Vector3(-0.36, gait * 0.04, 0))
+    _pose_sprint("J_Bip_C_Chest", Vector3(-0.28, -gait * 0.05, 0))
+    _pose_sprint("J_Bip_C_Head", Vector3(0.14, 0, 0))
+    _pose_sprint("J_Bip_L_UpperArm", Vector3(0.55 - 0.70 * gait, 0, 0.30))
+    _pose_sprint("J_Bip_R_UpperArm", Vector3(0.55 + 0.70 * gait, 0, -0.30))
+    _pose_sprint("J_Bip_L_LowerArm", Vector3(1.30, 0, 0.12))
+    _pose_sprint("J_Bip_R_LowerArm", Vector3(1.30, 0, -0.12))
+    _pose_sprint("J_Bip_L_UpperLeg", Vector3(1.05 * gait, 0, -0.07))
+    _pose_sprint("J_Bip_R_UpperLeg", Vector3(-1.05 * gait, 0, 0.07))
+    _pose_sprint("J_Bip_L_LowerLeg", Vector3(-0.35 - 0.90 * lift_l, 0, 0))
+    _pose_sprint("J_Bip_R_LowerLeg", Vector3(-0.35 - 0.90 * lift_r, 0, 0))
+    _pose_sprint("J_Bip_L_Foot", Vector3(0.45 * lift_l, 0, 0))
+    _pose_sprint("J_Bip_R_Foot", Vector3(0.45 * lift_r, 0, 0))
+
 func _animate(delta: float) -> void:
     if not skeleton:
         return
     visual_time += delta
     pose_blend = 1.0 - exp(-delta * 18.0)
+    sprint_blend = lerpf(sprint_blend, 1.0 if sprinting else 0.0, 1.0 - exp(-delta * 10.0))
     # Phase follows actual ground speed, so a slow stick deflection doesn't
     # produce a fast running cycle while the character barely moves.
-    gait_phase = fposmod(gait_phase + delta * speed_ratio * 9.5, TAU)
+    gait_phase = fposmod(gait_phase + delta * speed_ratio * (12.5 if sprinting else 9.5), TAU)
     if motion_driver:
         var attack_progress = 1.0 - attack_timer / ATTACK_DURATION if attack_timer > 0.0 else -1.0
         var dash_progress = 1.0 - dash_time / DASH_DURATION if dash_time > 0.0 else -1.0
         motion_driver.update(delta, speed_ratio, attack_progress, dash_progress, combo)
         var dash_weight = sin(PI * dash_progress) if dash_progress >= 0.0 else 0.0
-        model_root.rotation.x = lerpf(model_root.rotation.x, -0.22 * dash_weight, pose_blend)
+        model_root.rotation.x = lerpf(model_root.rotation.x, -0.22 * dash_weight - 0.26 * sprint_blend, pose_blend)
         model_root.rotation.z = lerpf(model_root.rotation.z, turn_lean * 0.5, pose_blend)
+        if sprint_blend > 0.01:
+            var gait = sin(gait_phase)
+            _sprint_pose(gait, pow(maxf(0.0, -gait), 1.2), pow(maxf(0.0, gait), 1.2))
+    # Sprint wind: blow hair/skirt/sleeves backward and slightly up so the
+    # cloth visibly lifts while running fast.
+    if wiggle:
+        var wind_target = Vector3.ZERO
+        if sprint_blend > 0.01 and facing.length_squared() > 0.0:
+            wind_target = Vector3(-facing.x, 0.30, -facing.z).normalized() * (15.0 * sprint_blend)
+        wiggle.set_wind(wiggle.wind.lerp(wind_target, 1.0 - exp(-delta * 6.0)))
     else:
         var gait: float = sin(gait_phase)
         var stride: float = gait * speed_ratio

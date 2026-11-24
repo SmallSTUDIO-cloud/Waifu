@@ -3,6 +3,7 @@ extends Control
 var direction: Vector2 = Vector2.ZERO
 var touch_index: int = -1
 var dragging: bool = false
+var sprinting: bool = false
 var knob: Vector2 = Vector2.ZERO
 const RADIUS: float = 72.0
 
@@ -12,14 +13,21 @@ func _ready() -> void:
 
 func _draw() -> void:
     # Glass look: translucent disc, bright rim, top highlight, frosted knob.
+    # While sprinting the whole control glows blue.
     var center: Vector2 = size * 0.5
-    draw_circle(center, RADIUS, Color(1, 1, 1, 0.10))
-    draw_arc(center, RADIUS, 0.0, TAU, 64, Color(1, 1, 1, 0.38), 2.0)
-    draw_arc(center, RADIUS - 9.0, PI * 1.02, PI * 1.62, 32, Color(1, 1, 1, 0.28), 7.0)
+    var rim = Color(0.40, 0.78, 1.0) if sprinting else Color(1, 1, 1)
+    if sprinting:
+        draw_circle(center, RADIUS, Color(0.30, 0.62, 1.0, 0.16))
+        draw_arc(center, RADIUS + 8.0, 0.0, TAU, 64, Color(rim.r, rim.g, rim.b, 0.15), 10.0)
+        draw_arc(center, RADIUS + 4.0, 0.0, TAU, 64, Color(rim.r, rim.g, rim.b, 0.35), 5.0)
+    else:
+        draw_circle(center, RADIUS, Color(1, 1, 1, 0.10))
+    draw_arc(center, RADIUS, 0.0, TAU, 64, Color(rim.r, rim.g, rim.b, 0.85 if sprinting else 0.38), 2.5 if sprinting else 2.0)
+    draw_arc(center, RADIUS - 9.0, PI * 1.02, PI * 1.62, 32, Color(rim.r, rim.g, rim.b, 0.28), 7.0)
     var knob_pos = center + knob * RADIUS * 0.65
-    draw_circle(knob_pos, 30.0, Color(1, 1, 1, 0.25))
-    draw_arc(knob_pos, 30.0, 0.0, TAU, 32, Color(1, 1, 1, 0.60), 2.0)
-    draw_arc(knob_pos, 23.0, PI * 1.05, PI * 1.7, 24, Color(1, 1, 1, 0.45), 5.0)
+    draw_circle(knob_pos, 30.0, Color(rim.r, rim.g, rim.b, 0.28 if sprinting else 0.25))
+    draw_arc(knob_pos, 30.0, 0.0, TAU, 32, Color(rim.r, rim.g, rim.b, 0.9 if sprinting else 0.60), 2.0)
+    draw_arc(knob_pos, 23.0, PI * 1.05, PI * 1.7, 24, Color(rim.r, rim.g, rim.b, 0.45), 5.0)
 
 func _input(event: InputEvent) -> void:
     if not visible or not is_inside_tree():

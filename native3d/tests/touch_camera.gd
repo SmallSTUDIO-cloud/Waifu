@@ -118,6 +118,17 @@ func run_test() -> void:
     scene.joystick.direction = Vector2(0, -1)
     scene._physics_process(0.0)
     check(scene.player.control.x < -0.99 and absf(scene.player.control.y) < 0.01, "camera-relative movement")
+    await process_frame
+    check(scene.player.sprinting, "far-forward joystick did not trigger sprint")
+    check(scene.player.SPRINT_SPEED > scene.player.SPEED, "sprint not faster than walk")
+    check(scene.joystick.sprinting, "joystick sprint glow flag not set")
+    for i in range(12): scene.player._animate(1.0 / 60.0)
+    check(scene.player.sprint_blend > 0.5, "sprint pose did not blend in")
+    check(scene.player.wiggle.modifiers[0].mod.force_global.length() > 2.0, "sprint wind not applied to physics")
+    scene.joystick.direction = Vector2(0.2, 0.2)
+    scene._physics_process(1.0 / 60.0)
+    check(not scene.player.sprinting, "sprint did not release on small stick deflection")
+    check(not scene.joystick.sprinting, "joystick glow did not clear")
     scene.player.dash_cooldown = 0.0
     scene._dodge()
     check(scene.player.dash_direction.x < -0.99, "camera-relative dodge")
