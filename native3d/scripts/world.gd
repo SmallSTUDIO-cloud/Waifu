@@ -133,8 +133,13 @@ func _ready() -> void:
         call_deferred("_pause")
     if "--preview-move" in args: preview_mode = "move"
     if "--preview-sprint" in args: preview_mode = "sprint"
-    if "--preview-sprint-accel" in args: preview_mode = "sprint_accel"
-    if "--preview-sprint-decel" in args: preview_mode = "sprint_decel"
+    if "--preview-sprint-accel" in args or "--preview-sprint-decel" in args:
+        preview_mode = "sprint_accel" if "--preview-sprint-accel" in args else "sprint_decel"
+        hud.visible = false
+        player.invulnerable = 99.0
+        for enemy in get_tree().get_nodes_in_group("enemies"):
+            enemy.enabled = false
+            enemy.visible = false
     if "--preview-attack" in args: preview_mode = "attack"
     if "--preview-dodge" in args: preview_mode = "dodge"
     if "--preview-combo" in args: preview_mode = "combo"
