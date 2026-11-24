@@ -43,7 +43,7 @@ var view_poses := {
     "west": [Vector3(-44, 15, 0), Vector3(0, 3, 0)],
     "north": [Vector3(0, 16, -44), Vector3(0, 4, 8)],
     "south": [Vector3(0, 16, 44), Vector3(0, 4, -8)],
-    "center": [Vector3(13, 10, 15), Vector3(0, 1, 0)],
+    "center": [Vector3(9, 12, 11), Vector3(0, 1, 0)],
 }
 var camera_exclusions: Array[Control] = []
 var control_touches: Dictionary = {}

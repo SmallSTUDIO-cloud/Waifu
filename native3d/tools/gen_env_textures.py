@@ -121,7 +121,7 @@ def concrete(path, seed):
 def plaza(path):
     rnd = random.Random(7)
     s = 1024
-    img = noise_rgb((s, s), (146, 140, 130), 40, 7).convert("RGBA")
+    img = noise_rgb((s, s), (134, 128, 118), 42, 7).convert("RGBA")
     d = ImageDraw.Draw(img)
     # slab grid
     for i in range(0, s + 1, 128):

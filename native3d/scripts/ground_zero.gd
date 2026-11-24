@@ -249,7 +249,7 @@ func _lighting() -> void:
     sun = DirectionalLight3D.new()
     sun.rotation_degrees = Vector3(-50.0, 32.0, 0.0)
     sun.light_color = Color(1.0, 0.95, 0.86)
-    sun.light_energy = 1.05
+    sun.light_energy = 1.0
     sun.shadow_enabled = true
     sun.directional_shadow_mode = DirectionalLight3D.SHADOW_PARALLEL_2_SPLITS
     sun.directional_shadow_max_distance = 48.0
@@ -468,7 +468,7 @@ func _landmarks() -> void:
     # communication tower, south of the plaza (centred in the North view)
     tower = Node3D.new()
     tower.name = "CommTower"
-    tower.position = Vector3(6.0, 0.0, 22.0)
+    tower.position = Vector3(2.0, 0.0, 22.0)
     lm.add_child(tower)
     var metal_parts: Array = []
     for sx in [-1.0, 1.0]:
@@ -488,14 +488,14 @@ func _landmarks() -> void:
     var ts := _mi(_cyl(1.6, 2.2, 24.0, 10), tower, Vector3(0, 12.0, 0), _mat("concrete_dark"))
     ts.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
     _range(ts, 90.0, 260.0)
-    _solid(Vector3(6.0, 12.0, 22.0), Vector3(3.4, 24.0, 3.4))
+    _solid(Vector3(2.0, 12.0, 22.0), Vector3(3.4, 24.0, 3.4))
     # the three readable billboards, oriented for their reference views:
-    # East view (camera at +X) sees the west facade -> CLAUDE FOREVER
-    _billboard(lm, Vector3(-23.0, 8.0, 8.0), PI / 2.0, "billboard_forever.png", "CLAUDE FOREVER", Vector3(9.0, 4.5, 0.3))
-    # West view (camera at -X) sees the east facade -> HUMANITY WAS HERE...
-    _billboard(lm, Vector3(23.0, 9.0, -6.0), -PI / 2.0, "billboard_humanity.png", "HUMANITY WAS HERE...", Vector3(9.0, 4.5, 0.3))
-    # South view (camera at +Z) sees the north facade -> CLAUDE AI CONTROLS THE WORLD
-    _billboard(lm, Vector3(2.0, 10.0, -23.0), 0.0, "billboard_controls.png", "CLAUDE AI CONTROLS THE WORLD", Vector3(10.0, 5.0, 0.3))
+    # East view (camera at +X) shows CLAUDE FOREVER on the left (+Z) of the west side
+    _billboard(lm, Vector3(-23.0, 8.0, 10.0), -PI / 2.0, "billboard_forever.png", "CLAUDE FOREVER", Vector3(9.0, 4.5, 0.3))
+    # West view (camera at -X) shows HUMANITY WAS HERE... on the right (+Z) of the east side
+    _billboard(lm, Vector3(23.0, 9.0, 8.0), PI / 2.0, "billboard_humanity.png", "HUMANITY WAS HERE...", Vector3(9.0, 4.5, 0.3))
+    # South view (camera at +Z) shows CLAUDE AI CONTROLS THE WORLD on the right (+X) of the north side
+    _billboard(lm, Vector3(10.0, 10.0, -23.0), PI, "billboard_controls.png", "CLAUDE AI CONTROLS THE WORLD", Vector3(10.0, 5.0, 0.3))
 
 
 # ---------------------------------------------------------------- vehicles
@@ -652,7 +652,7 @@ func _vegetation() -> void:
         var p := Vector3(sin(a) * r, 0, cos(a) * r)
         if _on_road(p):
             continue
-        var bush := _mi(_sphere(0.8 + randf() * 0.5, 0.6 + randf() * 0.4), veg, p + Vector3(0, 0.35, 0), _mat("leaf"))
+        var bush := _mi(_sphere(0.8 + randf() * 0.5, 1.0 + randf() * 0.5), veg, p + Vector3(0, 0.55, 0), _mat("leaf"))
         _range(bush, 0.0, 60.0)
 
 
