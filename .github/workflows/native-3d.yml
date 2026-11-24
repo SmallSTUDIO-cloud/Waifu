@@ -77,50 +77,39 @@ jobs:
           python3 -c 'import base64,json,os; print(json.dumps({"content":base64.b64encode(open(os.environ["SCREENSHOT"],"rb").read()).decode(),"encoding":"base64"}))' > /tmp/blob.json
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/blob.json --jq .sha)
           echo "::warning title=Visual review screenshot::$sha"
-      - name: Capture motion and combat frames
+      - name: Previews A (combat actions)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 -m pip install --quiet Pillow
-          for action in authored-sprint authored-move baseline-review authored-review-front authored-review-side authored-review-rear authored-combo authored-dodge legacy-move legacy-dodge authored-settings view-east view-west view-north view-south view-center; do
-            mkdir -p "/tmp/preview-$action"
-            frames=30
-            if [[ "$action" = *combo ]]; then frames=66; fi
-            if [[ "$action" = *review* ]]; then frames=90; fi
-            if [[ "$action" = view-* ]]; then frames=48; fi
-            preview_action="$action"
-            extra=""
-            if [[ "$action" = authored-* ]]; then preview_action="${action#authored-}"; extra="--preview-authored"; fi
-            if [[ "$action" = baseline-review ]]; then preview_action="review-front"; extra="--legacy-walk --legacy-dash"; fi
-            if [[ "$action" = legacy-move ]]; then preview_action="move"; extra="--legacy-walk"; fi
-            if [[ "$action" = legacy-dodge ]]; then preview_action="dodge"; extra="--legacy-dash"; fi
-            xvfb-run -a godot --path native3d --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy --write-movie "/tmp/preview-$action/frame.png" --fixed-fps 30 --quit-after "$frames" -- "--preview-$preview_action" $extra > "/tmp/preview-$action.log" 2>&1
-            if grep -E 'SCRIPT ERROR|^ERROR:' "/tmp/preview-$action.log"; then exit 1; fi
-            frame_number=12
-            if [[ "$action" = *dodge ]]; then frame_number=7; fi
-            if [[ "$action" = *combo ]]; then frame_number=36; fi
-            if [[ "$action" = view-* ]]; then frame_number=24; fi
-            shot=$(find "/tmp/preview-$action" -name '*.png' | sort | sed -n "${frame_number}p")
-            test -n "$shot"
-            python3 -c 'import base64,json,sys; print(json.dumps({"content":base64.b64encode(open(sys.argv[1],"rb").read()).decode(),"encoding":"base64"}))' "$shot" > /tmp/preview-blob.json
-            sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/preview-blob.json --jq .sha)
-            echo "::warning title=Preview $action::$sha"
-            python3 - "$action" <<'PYCODE'
-          import glob, sys
-          from PIL import Image
-          action = sys.argv[1]
-          paths = sorted(glob.glob('/tmp/preview-' + action + '/*.png'))
-          frames = []
-          for path in paths[::2]:
-              im = Image.open(path).convert('RGB')
-              im.thumbnail((640, 360))
-              frames.append(im.quantize(colors=128, method=Image.Quantize.FASTOCTREE))
-          frames[0].save('/tmp/preview-' + action + '.gif', save_all=True, append_images=frames[1:], duration=67, loop=0, optimize=True)
-          PYCODE
-            python3 -c 'import base64,json,sys; print(json.dumps({"content":base64.b64encode(open(sys.argv[1],"rb").read()).decode(),"encoding":"base64"}))' "/tmp/preview-$action.gif" > /tmp/preview-gif.json
-            gifsha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/preview-gif.json --jq .sha)
-            echo "::warning title=Animation $action::$gifsha"
-          done
+          bash .github/scripts/capture_preview.sh authored-sprint 30 12
+          bash .github/scripts/capture_preview.sh authored-move 30 12
+          bash .github/scripts/capture_preview.sh authored-dodge 30 7
+          bash .github/scripts/capture_preview.sh authored-combo 66 36
+          bash .github/scripts/capture_preview.sh legacy-dodge 30 7
+      - name: Previews B (settings and reviews)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/scripts/capture_preview.sh legacy-move 30 12
+          bash .github/scripts/capture_preview.sh authored-settings 30 12
+          bash .github/scripts/capture_preview.sh baseline-review 90 12
+          bash .github/scripts/capture_preview.sh authored-review-front 90 12
+          bash .github/scripts/capture_preview.sh authored-review-side 90 12
+      - name: Previews C (review rear + Ground Zero views)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/scripts/capture_preview.sh authored-review-rear 90 12
+          bash .github/scripts/capture_preview.sh view-east 48 24
+          bash .github/scripts/capture_preview.sh view-west 48 24
+          bash .github/scripts/capture_preview.sh view-north 48 24
+          bash .github/scripts/capture_preview.sh view-south 48 24
+      - name: Previews D (Ground Zero gameplay view)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/scripts/capture_preview.sh view-center 48 24
       - name: Store diagnostics
         if: always()
         env:
