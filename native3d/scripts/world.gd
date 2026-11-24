@@ -113,7 +113,7 @@ func _ready() -> void:
             start_game()
             hud.visible = false
             player.invulnerable = 99.0
-            var show_actor := view == "center"
+            var show_actor: bool = view == "center"
             player.visible = show_actor
             for enemy in get_tree().get_nodes_in_group("enemies"):
                 enemy.enabled = false

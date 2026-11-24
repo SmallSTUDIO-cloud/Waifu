@@ -43,9 +43,9 @@ func run_test() -> void:
         check(d - half > 9.0, "solid too close to plaza center at %s (d=%.1f half=%.1f)" % [str(s.pos), d, half])
 
     # Landmarks from the reference.
-    var texts := gz.billboard_texts.duplicate()
+    var texts: Array = gz.billboard_texts.duplicate()
     texts.sort()
-    var want := ["CLAUDE AI CONTROLS THE WORLD", "CLAUDE FOREVER", "HUMANITY WAS HERE..."]
+    var want: Array = ["CLAUDE AI CONTROLS THE WORLD", "CLAUDE FOREVER", "HUMANITY WAS HERE..."]
     want.sort()
     check(texts == want, "billboard set wrong: %s" % str(texts))
     check(gz.tower != null and gz.tower.get_child_count() > 10, "comm tower missing")
