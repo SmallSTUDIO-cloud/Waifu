@@ -72,9 +72,16 @@ jobs:
           godot --headless --path native3d --editor --import --quit 2>&1 | tail -5
       - name: Export signed release APK
         run: |
-          set -o pipefail
+          # Godot 4.4 headless export can exit non-zero after the APK is written;
+          # judge by the artifact, same as native-emulator.yml.
+          set +e
           godot --headless --path native3d --export-release Android "$RUNNER_TEMP/$APK_NAME" 2>&1 | tee /tmp/android-export-release.log
-          test -s "$RUNNER_TEMP/$APK_NAME"
+          st=${PIPESTATUS[0]}
+          set -e
+          echo "godot export exit code: $st"
+          ls -l "$HOME/.local/share/godot/export_templates/4.4.1.stable/" || true
+          test -s "$RUNNER_TEMP/$APK_NAME" || { echo "::error title=APK export::APK file missing after export"; exit 1; }
+          ls -lh "$RUNNER_TEMP/$APK_NAME"
       - name: Verify and re-sign APK
         run: |
           set -e
@@ -96,6 +103,13 @@ jobs:
         with:
           name: scarlet-veil-3d-prerelease-apk
           path: ${{ runner.temp }}/${{ env.APK_NAME }}
+          retention-days: 30
+      - name: Upload export log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-export-log
+          path: /tmp/android-export-release.log
           retention-days: 30
       - name: Emulator smoke test (install + launch release APK)
         uses: reactivecircus/android-emulator-runner@v2
