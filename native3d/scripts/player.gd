@@ -451,26 +451,26 @@ func _sprint_pose(phase: float) -> void:
     # HairJoint*/J_Sec_* hair/skirt/sleeve chains, so no double animation.
     var s := sin(phase)
     var c := cos(phase)
-    var thigh := 0.72 * c
-    var knee_l := 0.14 + 1.50 * pow(maxf(0.0, -s), 1.4)
-    var knee_r := 0.14 + 1.50 * pow(maxf(0.0, s), 1.4)
-    var foot_l := 0.50 * pow(maxf(0.0, -s), 1.2)
-    var foot_r := 0.50 * pow(maxf(0.0, s), 1.2)
+    var thigh := 0.75 * c
+    var knee_l := 0.12 + 1.55 * pow(maxf(0.0, -s), 1.4)
+    var knee_r := 0.12 + 1.55 * pow(maxf(0.0, s), 1.4)
+    var foot_l := 0.55 * pow(maxf(0.0, -s), 1.2)
+    var foot_r := 0.55 * pow(maxf(0.0, s), 1.2)
     _pose_sprint("J_Bip_L_UpperLeg", Vector3(thigh, 0, -0.05))
     _pose_sprint("J_Bip_R_UpperLeg", Vector3(-thigh, 0, 0.05))
     _pose_sprint("J_Bip_L_LowerLeg", Vector3(-knee_l, 0, 0))
     _pose_sprint("J_Bip_R_LowerLeg", Vector3(-knee_r, 0, 0))
     _pose_sprint("J_Bip_L_Foot", Vector3(foot_l, 0, 0))
     _pose_sprint("J_Bip_R_Foot", Vector3(foot_r, 0, 0))
-    var arm := 0.50 * c
-    _pose_sprint("J_Bip_L_UpperArm", Vector3(0.10 - arm, 0, 0.07))
-    _pose_sprint("J_Bip_R_UpperArm", Vector3(0.10 + arm, 0, -0.07))
-    _pose_sprint("J_Bip_L_LowerArm", Vector3(1.15 + 0.12 * s, 0, 0.10))
-    _pose_sprint("J_Bip_R_LowerArm", Vector3(1.15 - 0.12 * s, 0, -0.10))
-    _pose_sprint("J_Bip_C_Hips", Vector3(0.30, -0.12 * c, 0.05 * s))
+    var arm := 0.46 * c
+    _pose_sprint("J_Bip_L_UpperArm", Vector3(0.06 - arm, 0, 0.05))
+    _pose_sprint("J_Bip_R_UpperArm", Vector3(0.06 + arm, 0, -0.05))
+    _pose_sprint("J_Bip_L_LowerArm", Vector3(1.22 + 0.12 * s, 0, 0.08))
+    _pose_sprint("J_Bip_R_LowerArm", Vector3(1.22 - 0.12 * s, 0, -0.08))
+    _pose_sprint("J_Bip_C_Hips", Vector3(0.30, -0.12 * c, 0.07 * s))
     _pose_sprint("J_Bip_C_Spine", Vector3(-0.20, 0.06 * s, 0))
     _pose_sprint("J_Bip_C_Chest", Vector3(-0.16, 0.10 * c, 0))
-    _pose_sprint("J_Bip_C_Head", Vector3(0.12, -0.06 * c, 0))
+    _pose_sprint("J_Bip_C_Head", Vector3(0.12, -0.06 * c, 0.03 * s))
 
 
 func _animate(delta: float) -> void:
@@ -500,12 +500,20 @@ func _animate(delta: float) -> void:
         model_root.position.y = lerpf(model_root.position.y, bob_target, pose_blend)
         if sprint_blend > 0.01:
             _sprint_pose(gait_phase)
-    # Sprint wind: blow hair/skirt/sleeves backward and slightly up so the
-    # cloth visibly lifts while running fast.
+    # Wind: blow hair/scarf/skirt/sleeves backward while moving. A steady
+    # breeze scaled by real speed plus a stride-frequency lateral sway keeps
+    # the cloth flowing at CONSTANT run speed (the springs are
+    # acceleration-driven, so without this they would only react to
+    # starts/stops); sprinting adds a strong backward wind.
     if wiggle:
         var wind_target = Vector3.ZERO
-        if sprint_blend > 0.01 and facing.length_squared() > 0.0:
-            wind_target = Vector3(-facing.x, 0.30, -facing.z).normalized() * (15.0 * sprint_blend)
+        if facing.length_squared() > 0.0:
+            var back = Vector3(-facing.x, 0, -facing.z).normalized()
+            var right = Vector3(-facing.z, 0, facing.x)
+            var moving = speed_ratio
+            var breeze = 4.5 * moving + 15.0 * sprint_blend
+            var sway = 2.6 * moving + 5.0 * sprint_blend
+            wind_target = back * breeze + Vector3(0, 0.25 * moving + 0.35 * sprint_blend, 0) + right * sin(gait_phase) * sway
         wiggle.set_wind(wiggle.wind.lerp(wind_target, 1.0 - exp(-delta * 6.0)))
     else:
         var gait: float = sin(gait_phase)

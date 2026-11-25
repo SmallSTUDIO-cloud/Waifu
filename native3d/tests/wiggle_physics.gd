@@ -31,12 +31,13 @@ func run_test() -> void:
 	for entry in w.modifiers:
 		var bone_name: String = skeleton.get_bone_name(entry.bone)
 		kinds[entry.kind] = true
-		check("Bust" not in bone_name and not bone_name.begins_with("J_Bip_"), "anatomy bone wiggled: " + bone_name)
+		check(not bone_name.begins_with("J_Bip_"), "body bone wiggled: " + bone_name)
 		if entry.kind == "hair" and entry.depth > deepest_depth:
 			deepest_depth = entry.depth
 			deepest_hair = entry.bone
 	check(kinds.has("hair"), "no hair wiggle chain")
 	check(kinds.has("cloth"), "no skirt/sleeve wiggle chain")
+	check(kinds.has("scarf"), "no chest-scarf (Bust) wiggle chain")
 	check(w.active, "wiggle not active at default FULL quality")
 	for entry in w.modifiers:
 		check(entry.mod.influence == 1.0, "modifier influence not 1 at FULL")

@@ -1,12 +1,14 @@
 extends RefCounted
-# Real jiggle physics for hair, skirt and sleeve chains, using the vendored
-# MIT WiggleBone addon (detomon/wigglebone, addons/wigglebone). The addon is a
-# SkeletonModifier3D that models each bone as a point mass on a spring and
-# reacts to ACCELERATION, not velocity: while walking at constant speed the
-# hair does not permanently lag behind; it swings on starts, stops, turns and
-# dodges, and droops under gravity when idle. Anatomy (bust) bones are never
-# touched. At PHYSICS quality 2 (FULL) the wiggle modifiers drive these chains
-# and the cheaper angular springs in secondary_motion.gd stand down.
+# Real jiggle physics for hair, skirt, sleeve and chest-scarf (Bust) chains,
+# using the vendored MIT WiggleBone addon (detomon/wigglebone,
+# addons/wigglebone). The addon is a SkeletonModifier3D that models each bone
+# as a point mass on a spring and reacts to ACCELERATION plus the external
+# force (wind/breeze), not raw velocity: while running at constant speed the
+# player.gd gait wind keeps the strands flowing, and on starts, stops, turns
+# and dodges the acceleration swings them; they droop under gravity when
+# idle. Body (J_Bip_*) bones are never touched. At PHYSICS quality 2 (FULL)
+# the wiggle modifiers drive these chains and the cheaper angular springs in
+# secondary_motion.gd stand down.
 const WiggleMod = preload("res://addons/wigglebone/wiggle_rotation_modifier_3d.gd")
 const WiggleProps = preload("res://addons/wigglebone/wiggle_rotation_properties_3d.gd")
 
@@ -27,7 +29,9 @@ func setup(skel: Skeleton3D) -> void:
 			kind = "hair"
 		elif name.begins_with("J_Sec_") and ("Skirt" in name or "Sleeve" in name):
 			kind = "cloth"
-		# J_Sec_*Bust* and all body bones are deliberately never simulated.
+		elif name.begins_with("J_Sec_") and "Bust" in name:
+			kind = "scarf"
+		# J_Bip_* body bones are deliberately never simulated.
 		if kind.is_empty():
 			continue
 		var depth = _chain_depth(index, kind)
@@ -38,7 +42,7 @@ func _chain_depth(index: int, kind: String) -> int:
 	var walker = skeleton.get_bone_parent(index)
 	while walker >= 0:
 		var walker_name = skeleton.get_bone_name(walker)
-		var same = walker_name.begins_with("HairJoint") if kind == "hair" else (walker_name.begins_with("J_Sec_") and ("Skirt" in walker_name or "Sleeve" in walker_name))
+		var same = walker_name.begins_with("HairJoint") if kind == "hair" else (walker_name.begins_with("J_Sec_") and ("Skirt" in walker_name or "Sleeve" in walker_name or "Bust" in walker_name))
 		if not same:
 			break
 		depth += 1
@@ -61,21 +65,33 @@ func _add_bone(index: int, kind: String, depth: int) -> void:
 	# strands from moving in perfect lockstep.
 	var wobble = 0.96 + 0.04 * float(index % 4)
 	if kind == "hair":
-		var freq = 3.4 * (1.0 - 0.28 * df) * wobble
+		# Soft and flowing: low spring freq, clearly underdamped so tips whip
+		# and trail, moderate gravity droop, generous swing span.
+		var freq = 2.9 * (1.0 - 0.30 * df) * wobble
 		p.spring_freq = freq
-		p.angular_damp = 1.4 * freq # zeta ~= 0.22, lively but settles
-		p.gravity = Vector3(0, -2.2, 0) # gentle idle droop
-		p.swing_span = deg_to_rad(45.0) # keep strands off the face/scarf
-		p.linear_scale = 340.0 # reaction to walking/dashing
-		p.force_scale = 160.0
+		p.angular_damp = 1.15 * freq # zeta ~= 0.18, flowing follow-through
+		p.gravity = Vector3(0, -2.6, 0) # gentle idle droop
+		p.swing_span = deg_to_rad(50.0) # keep strands off the face/scarf
+		p.linear_scale = 360.0 # reaction to walking/dashing
+		p.force_scale = 230.0 # strong breeze/wind response while running
 	else:
-		var freq = 4.6 * (1.0 - 0.30 * df) * wobble
+		var freq = 4.2 * (1.0 - 0.30 * df) * wobble
 		p.spring_freq = freq
-		p.angular_damp = 3.1 * freq # zeta ~= 0.49, cloth settles fast
-		p.gravity = Vector3(0, -6.5, 0) # visible skirt sag
-		p.swing_span = deg_to_rad(30.0) # panels stay close to the legs
-		p.linear_scale = 430.0
-		p.force_scale = 170.0
+		p.angular_damp = 3.2 * freq # zeta ~= 0.51, cloth settles fast
+		p.gravity = Vector3(0, -7.0, 0) # visible skirt sag
+		p.swing_span = deg_to_rad(32.0) # panels stay close to the legs
+		p.linear_scale = 460.0
+		p.force_scale = 190.0
+		if kind == "scarf":
+			# Chest scarf panels: soft but tight span so they never clip the
+			# chest or the sword arm.
+			var sfreq = 4.4 * (1.0 - 0.25 * df) * wobble
+			p.spring_freq = sfreq
+			p.angular_damp = 3.4 * sfreq # zeta ~= 0.54
+			p.gravity = Vector3(0, -5.5, 0)
+			p.swing_span = deg_to_rad(24.0)
+			p.linear_scale = 400.0
+			p.force_scale = 200.0
 	mod.properties = p
 	mod.influence = 0.0
 	# SkeletonModifier3D runs in child order, so parents must be added first;

@@ -16,10 +16,10 @@ func run_test() -> void:
     var kinds = {}
     for joint in sim.joints:
         kinds[joint.kind] = int(kinds.get(joint.kind, 0)) + 1
-        if "Bust" in player.skeleton.get_bone_name(joint.bone):
+        if joint.bone >= 0 and player.skeleton.get_bone_name(joint.bone).begins_with("J_Bip_"):
             fail("body anatomy must not be simulated")
             return
-    for category in ["hair", "skirt", "sleeve"]:
+    for category in ["hair", "skirt", "sleeve", "scarf"]:
         if not kinds.has(category):
             fail("missing " + category)
             return

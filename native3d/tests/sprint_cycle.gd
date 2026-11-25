@@ -60,11 +60,13 @@ func run_test() -> void:
     # sprint pose layer.
     var hair = _find_bone(player.skeleton, "HairJoint")
     var skirt = _find_bone(player.skeleton, "J_Sec_")
-    if hair < 0 or skirt < 0:
-        _fail("hair/cloth bones not found")
+    var scarf = _find_bone(player.skeleton, "Bust")
+    if hair < 0 or skirt < 0 or scarf < 0:
+        _fail("hair/cloth/scarf bones not found")
         return
     var hair_before: Quaternion = player.skeleton.get_bone_pose_rotation(hair)
     var skirt_before: Quaternion = player.skeleton.get_bone_pose_rotation(skirt)
+    var scarf_before: Quaternion = player.skeleton.get_bone_pose_rotation(scarf)
     player.sprint_blend = 1.0
     for step in range(24):
         player._sprint_pose(TAU * step / 24.0)
@@ -73,6 +75,9 @@ func run_test() -> void:
         return
     if absf(player.skeleton.get_bone_pose_rotation(skirt).dot(skirt_before)) < 0.999999:
         _fail("sprint pose wrote to a cloth bone (double animation)")
+        return
+    if absf(player.skeleton.get_bone_pose_rotation(scarf).dot(scarf_before)) < 0.999999:
+        _fail("sprint pose wrote to a scarf bone (double animation)")
         return
 
     # 3. Pose quality across one full stride.

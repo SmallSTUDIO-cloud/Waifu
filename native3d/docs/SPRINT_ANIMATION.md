@@ -65,3 +65,31 @@ Hero model/skeleton/attachments, wiggle physics ownership (hair/skirt/sleeve),
 sword grip attachment, combat/dodge animations, enemies, HUD, code-driven
 movement controller and clamps, quality routing. Mobile-friendly: same rig,
 no new layers, no root motion, a few extra slerps only while sprinting.
+
+## Follow-up: cloth & hair feel (device feedback)
+
+Playtesting the v0.4.1 APK showed the run reads better but cloth felt dead at
+constant speed, and the chest scarf never moved at all. Root causes and fixes:
+
+- The scarf lives on `J_Sec_{L,R}_Bust1/2`, which **neither** wiggle_physics
+  (FULL) **nor** secondary_motion (lower tiers) simulated. Both now own those
+  bones as a `scarf` chain: soft springs, zeta ~0.5, small 24 deg swing span so
+  the panels never clip the chest or sword arm. Tests updated: `J_Bip_*` body
+  bones must still never be simulated; `scarf` kind must exist in both systems.
+- WiggleBone reacts to acceleration, so at constant run speed hair/skirt only
+  drooped. `player.gd` now drives `wiggle.set_wind` with a steady breeze
+  (`4.5 * speed_ratio + 15 * sprint_blend` backward) plus a stride-frequency
+  lateral sway (`sin(gait_phase) * (2.6*speed_ratio + 5*sprint_blend)`) and a
+  small lift — cloth/hair now flow continuously while running, and stream hard
+  during sprints.
+- Spring retune for softer, more natural motion: hair freq 3.4->2.9 with
+  zeta ~0.18 (flowing whip at the tips), gravity -2.6, swing span 50 deg,
+  force_scale 230; skirt/sleeve freq 4.6->4.2, zeta ~0.51, gravity -7,
+  swing span 32 deg.
+- Sprint pose polish: longer stride (thigh 0.75), deeper knee flex
+  (0.12 + 1.55*lift), more foot articulation, tighter arm pump (swing 0.46,
+  base 0.06, z +/-0.05), elbows ~1.22 rad (~70 deg, compact), stronger pelvis
+  roll (0.07), and a subtle head tilt (0.03*sin) so the run feels alive.
+- Android `version/code` bumped 3->4 so phones upgrade over the previous
+  v0.4.1 install. The prerelease tag v0.4.1-native3d-test is re-created by the
+  workflow; v0.4.0-native3d-test remains untouched.

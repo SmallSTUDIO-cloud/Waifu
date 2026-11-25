@@ -31,6 +31,7 @@ func setup(skeleton: Skeleton3D) -> void:
         if name.begins_with("HairJoint"): kind = "hair"
         elif name.begins_with("J_Sec_") and "Skirt" in name: kind = "skirt"
         elif name.begins_with("J_Sec_") and "Sleeve" in name: kind = "sleeve"
+        elif name.begins_with("J_Sec_") and "Bust" in name: kind = "scarf"
         # Only explicit secondary accessory bones are candidates; this avatar
         # has none. Never infer accessory motion from a body or hair bone.
         elif name.begins_with("J_Sec_") and ("Ribbon" in name or "Bow" in name or "Accessory" in name): kind = "accessory"
@@ -44,7 +45,7 @@ func setup(skeleton: Skeleton3D) -> void:
             if rig.get_bone_parent(c) == index:
                 child = c
                 break
-        var limit = 0.17 if kind == "hair" else (0.09 if kind == "skirt" else 0.075)
+        var limit = 0.17 if kind == "hair" else (0.09 if kind == "skirt" else (0.055 if kind == "scarf" else 0.075))
         # Chain depth: roots stay stiff, tips get looser, which gives the
         # whip-like falloff of real hair/cloth instead of a rigid chain.
         var depth = 0
@@ -58,8 +59,10 @@ func setup(skeleton: Skeleton3D) -> void:
         var depth_frac = clampf(float(depth) / 4.0, 0.0, 1.0)
         # Stable per-chain variation without random noise or frame-dependent jitter.
         var variation = 0.93 + 0.035 * float(index % 5)
-        var stiffness = (28.0 if kind == "hair" else 38.0) * variation * (1.0 - 0.30 * depth_frac)
-        var damping = (9.0 if kind == "hair" else 11.0) * variation * (1.0 - 0.18 * depth_frac)
+        var base_k = 28.0 if kind == "hair" else (34.0 if kind == "scarf" else 38.0)
+        var base_d = 9.0 if kind == "hair" else (10.5 if kind == "scarf" else 11.0)
+        var stiffness = base_k * variation * (1.0 - 0.30 * depth_frac)
+        var damping = base_d * variation * (1.0 - 0.18 * depth_frac)
         var base = rig.get_bone_pose_rotation(index)
         joints.append({"bone": index, "parent": parent, "child": child, "kind": kind,
             "root": root_joint, "weight": 1.0, "rest": base, "base": base, "last": base, "limit": limit,
