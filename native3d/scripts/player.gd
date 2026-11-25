@@ -443,7 +443,10 @@ func _pose_sprint(bone_name: String, angles: Vector3) -> void:
 
 func _sprint_pose(phase: float) -> void:
     # Grounded anime sprint: one full stride per TAU of `phase`, left foot
-    # plants at phase 0. Thighs swing about the hip; the knee flexes hardest
+    # plants at phase 0. The avatar rests in a T-pose, so local Z is the
+    # abduction axis: the sprint pose adducts the upper arms DOWN along the
+    # body (z ~ +/-1.05) and pumps them fore/aft on X with bent elbows.
+    # Thighs swing about the hip; the knee flexes hardest
     # mid-swing and is near-straight at contact; arms pump in opposition to
     # the legs with bent elbows along a compact path; pelvis yaws/rolls
     # slightly while the chest counter-rotates and the head stays level.
@@ -463,10 +466,10 @@ func _sprint_pose(phase: float) -> void:
     _pose_sprint("J_Bip_L_Foot", Vector3(foot_l, 0, 0))
     _pose_sprint("J_Bip_R_Foot", Vector3(foot_r, 0, 0))
     var arm := 0.46 * c
-    _pose_sprint("J_Bip_L_UpperArm", Vector3(0.06 - arm, 0, 0.05))
-    _pose_sprint("J_Bip_R_UpperArm", Vector3(0.06 + arm, 0, -0.05))
-    _pose_sprint("J_Bip_L_LowerArm", Vector3(1.22 + 0.12 * s, 0, 0.08))
-    _pose_sprint("J_Bip_R_LowerArm", Vector3(1.22 - 0.12 * s, 0, -0.08))
+    _pose_sprint("J_Bip_L_UpperArm", Vector3(0.10 - arm, 0, 1.10 + 0.05 * s))
+    _pose_sprint("J_Bip_R_UpperArm", Vector3(0.10 + arm, 0, -1.05 - 0.05 * s))
+    _pose_sprint("J_Bip_L_LowerArm", Vector3(1.25 + 0.10 * s, 0, 0.15))
+    _pose_sprint("J_Bip_R_LowerArm", Vector3(1.25 - 0.10 * s, 0, -0.15))
     _pose_sprint("J_Bip_C_Hips", Vector3(0.30, -0.12 * c, 0.07 * s))
     _pose_sprint("J_Bip_C_Spine", Vector3(-0.20, 0.06 * s, 0))
     _pose_sprint("J_Bip_C_Chest", Vector3(-0.16, 0.10 * c, 0))

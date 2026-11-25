@@ -99,12 +99,13 @@ func run_test() -> void:
         var e_r: Vector3 = _bone_euler(player, elbow_r)
         var l_l: Vector3 = _bone_euler(player, leg_l)
         var l_r: Vector3 = _bone_euler(player, leg_r)
-        # Arms compact: no wide z spread like the old pose (±0.30).
-        if absf(a_l.z) > 0.15 or absf(a_r.z) > 0.15:
-            _fail("sprint arm spread too wide: z=" + str(a_l.z) + "/" + str(a_r.z))
+        # Arms adducted DOWN along the body (T-pose rest => z is abduction;
+        # the old bug was z ~ 0 leaving arms stuck out sideways).
+        if absf(a_l.z) < 0.8 or absf(a_r.z) < 0.8 or a_l.z * a_r.z > 0.0:
+            _fail("sprint arms not held down/pumping: z=" + str(a_l.z) + "/" + str(a_r.z))
             return
         # Elbows bent (roughly 60-80 degrees) the whole cycle.
-        if e_l.x < 0.85 or e_l.x > 1.45 or e_r.x < 0.85 or e_r.x > 1.45:
+        if e_l.x < 0.95 or e_l.x > 1.50 or e_r.x < 0.95 or e_r.x > 1.50:
             _fail("sprint elbow not bent: " + str(e_l.x) + "/" + str(e_r.x))
             return
         # Opposite arm/leg coordination.
