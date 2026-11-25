@@ -4,6 +4,7 @@ name: Android prerelease APK
 # prerelease/tag is never deleted or modified by this workflow.
 # Trigger: Actions tab -> Run workflow (manual), or any push that touches this
 # file (same pattern as native-emulator.yml, so the branch can self-launch it).
+# Rebuild note: bump the comment to force a fresh APK build of the branch tip.
 on:
   push:
     paths:
