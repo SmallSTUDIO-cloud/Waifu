@@ -94,7 +94,7 @@ func _ready() -> void:
     if player.motion_driver:
         player.motion_driver.use_formal_walk = not "--legacy-walk" in args
         player.motion_driver.use_sword_dash = not "--legacy-dash" in args
-    if "--smoke-play" in args or "--preview-move" in args or "--preview-sprint" in args or "--preview-sprint-accel" in args or "--preview-sprint-decel" in args or "--preview-sprint-front" in args or "--preview-sprint-side" in args or "--preview-sprint-rear" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args or "--preview-grip" in args:
+    if "--smoke-play" in args or "--preview-move" in args or "--preview-sprint" in args or "--preview-sprint-accel" in args or "--preview-sprint-decel" in args or "--preview-sprint-front" in args or "--preview-sprint-side" in args or "--preview-sprint-rear" in args or "--preview-sprint-three-quarter" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args or "--preview-grip" in args:
         start_game()
     for side in ["front", "side", "rear"]:
         if "--preview-review-" + side in args:
@@ -106,7 +106,7 @@ func _ready() -> void:
             for enemy in get_tree().get_nodes_in_group("enemies"):
                 enemy.enabled = false
                 enemy.visible = false
-    for side in ["front", "side", "rear"]:
+    for side in ["front", "side", "rear", "three-quarter"]:
         if "--preview-sprint-" + side in args:
             review_camera = side
             preview_mode = "sprint"

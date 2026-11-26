@@ -114,13 +114,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           bash .github/scripts/capture_preview.sh view-center 48 24
-      - name: Previews E (sprint rework angles and transitions)
+      - name: Previews E1 (sprint angles)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           bash .github/scripts/capture_preview.sh sprint-front 60 30
           bash .github/scripts/capture_preview.sh sprint-side 60 30
           bash .github/scripts/capture_preview.sh sprint-rear 60 30
+      - name: Previews E2 (sprint three-quarter and transitions)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
           bash .github/scripts/capture_preview.sh sprint-three-quarter 60 30
           bash .github/scripts/capture_preview.sh sprint-accel 75 55
           bash .github/scripts/capture_preview.sh sprint-decel 75 55
