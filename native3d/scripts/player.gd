@@ -535,7 +535,7 @@ func _animate(delta: float) -> void:
                 back = Vector3(-hv.x, 0, -hv.y).normalized()
             var right = Vector3(back.z, 0, -back.x)
             var moving = speed_ratio
-            var breeze = 5.5 * moving + 18.0 * sprint_blend
+            var breeze = 7.0 * moving + 26.0 * sprint_blend
             var sway = 2.6 * moving + 5.0 * sprint_blend
             wind_target = back * breeze + Vector3(0, 0.15 * moving + 0.25 * sprint_blend, 0) + right * sin(gait_phase) * sway
         wiggle.set_wind(wiggle.wind.lerp(wind_target, 1.0 - exp(-delta * 6.0)))
