@@ -136,6 +136,14 @@ jobs:
           bash .github/scripts/capture_preview.sh dodge 30 15
           bash .github/scripts/capture_preview.sh skill 60 30
           bash .github/scripts/capture_preview.sh ultimate 75 38
+      - name: Store preview manifest
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/preview-manifest.txt","rb").read()).decode(),"encoding":"base64"}))' > /tmp/manifest.json
+          sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/manifest.json --jq .sha)
+          echo "::warning title=Preview manifest::$sha"
       - name: Store diagnostics
         if: always()
         env:

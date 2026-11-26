@@ -34,3 +34,4 @@ PYCODE
 python3 -c 'import base64,json,sys; print(json.dumps({"content":base64.b64encode(open(sys.argv[1],"rb").read()).decode(),"encoding":"base64"}))' "/tmp/preview-$action.gif" > /tmp/preview-gif.json
 gifsha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/preview-gif.json --jq .sha)
 echo "::warning title=Animation $action::$gifsha"
+echo "$action gif=$gifsha still=$sha" >> /tmp/preview-manifest.txt
