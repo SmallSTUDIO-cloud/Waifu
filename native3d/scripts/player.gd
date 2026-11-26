@@ -516,8 +516,13 @@ func _animate(delta: float) -> void:
             # behind the runner (asserted by the wind-direction test in
             # tests/wiggle_physics.gd). Small lift + stride-frequency sway keep the
             # cloth fluttering at constant speed.
+            # Oppose the ACTUAL movement direction while moving (backward and
+            # strafing runs trail correctly too), facing as fallback.
             var back = Vector3(-facing.x, 0, -facing.z).normalized()
-            var right = Vector3(-facing.z, 0, facing.x)
+            var hv = Vector2(velocity.x, velocity.z)
+            if hv.length() > 0.6:
+                back = Vector3(-hv.x, 0, -hv.y).normalized()
+            var right = Vector3(back.z, 0, -back.x)
             var moving = speed_ratio
             var breeze = 5.5 * moving + 18.0 * sprint_blend
             var sway = 2.6 * moving + 5.0 * sprint_blend

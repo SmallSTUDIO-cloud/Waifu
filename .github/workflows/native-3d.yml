@@ -37,6 +37,7 @@ jobs:
           timeout 180 godot --headless --path native3d --script res://tests/quality_settings.gd 2>&1 | tee /tmp/quality-settings.log
           timeout 180 godot --headless --path native3d --script res://tests/touch_camera.gd 2>&1 | tee /tmp/touch-camera.log
           timeout 180 godot --headless --path native3d --script res://tests/wiggle_physics.gd 2>&1 | tee /tmp/wiggle.log
+          timeout 180 godot --headless --path native3d --script res://tests/secondary_inertia.gd 2>&1 | tee /tmp/secondary-inertia.log
           timeout 180 godot --headless --path native3d --script res://tests/enemy_combat.gd 2>&1 | tee /tmp/enemy-combat.log
           timeout 180 godot --headless --path native3d --script res://tests/ground_zero.gd 2>&1 | tee /tmp/ground-zero.log
           timeout 180 godot --headless --path native3d --script res://tests/sprint_cycle.gd 2>&1 | tee /tmp/sprint-cycle.log
