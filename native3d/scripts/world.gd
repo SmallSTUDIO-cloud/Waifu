@@ -502,6 +502,7 @@ func _update_camera(delta: float) -> void:
         var offset = Vector3(0, 0.35, 1.9)
         if review_camera == "front": offset = Vector3(0, 0.35, -1.9)
         if review_camera == "side": offset = Vector3(1.9, 0.35, 0)
+        if review_camera == "three-quarter": offset = Vector3(1.35, 0.45, -1.35)
         camera.global_position = center + offset
         camera.look_at(center, Vector3.UP)
         return
