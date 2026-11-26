@@ -8,3 +8,6 @@ android/app/src/main/assets/web/
 *.apk
 native3d/.godot/
 native3d/build/
+
+# CI-captured animation previews (regenerated from check-run annotations)
+previews/
