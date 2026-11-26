@@ -34,6 +34,13 @@ func _dot(w, bone_idx: int, facing: Vector3) -> float:
 			return entry.mod._global_direction.dot(facing)
 	return 0.0
 
+func _swing(w, bone_idx: int, skeleton: Skeleton3D) -> float:
+	for entry in w.modifiers:
+		if entry.bone == bone_idx:
+			var pose_dir = (skeleton.get_bone_global_pose_no_override(bone_idx).basis * Vector3.UP).normalized()
+			return entry.mod._global_direction.angle_to(pose_dir)
+	return -1.0
+
 func _avg(values: Array) -> float:
 	var s := 0.0
 	for v in values:
