@@ -38,6 +38,22 @@ func _mesh_tris(node: Node) -> int:
 		total += _mesh_tris(c)
 	return total
 
+func _all_aabb(node: Node) -> AABB:
+	var result := AABB(Vector3.ZERO, Vector3.ZERO)
+	var first := true
+	if node is MeshInstance3D and node.mesh:
+		var a = node.get_aabb()
+		result = a if first else result.merge(a)
+		first = false
+	for c in node.get_children():
+		var a = _all_aabb(c)
+		if not first:
+			result = result.merge(a)
+		else:
+			result = a
+			first = false
+	return result
+
 func _has_emissive_red(node: Node) -> bool:
 	if node is MeshInstance3D:
 		var m = node.material_override
@@ -77,7 +93,7 @@ func run_test() -> void:
 	if attached != null:
 		# The GLB root sits at the grip origin; check the mesh AABB instead:
 		# the blade must extend along local -Y (tip near y=-0.885).
-		var aabb = attached.get_aabb()
+		var aabb = _all_aabb(attached)
 		print("SCARLET blade aabb min=", aabb.position, " size=", aabb.size)
 		check(aabb.position.y < -0.5, "blade does not extend along -Y (aabb min y=%.3f)" % aabb.position.y)
 
