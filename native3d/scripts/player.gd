@@ -17,6 +17,8 @@ const SPRINT_MIN_UP: float = -0.55
 const DASH_SPEED: float = 10.0
 const ATTACK_DURATION: float = 0.58
 const DASH_DURATION: float = 0.27
+const SKILL_COST: float = 50.0
+const ULT_COST: float = 100.0
 var control: Vector2 = Vector2.ZERO
 var facing: Vector3 = Vector3(0, 0, -1)
 var health: int = 100
@@ -333,6 +335,29 @@ func dodge() -> bool:
     dash_cooldown = 1.0
     invulnerable = DASH_DURATION
     return true
+
+func can_skill() -> bool:
+    return enabled and energy >= SKILL_COST and attack_timer <= 0.0 and dash_time <= 0.0 and attack_cooldown <= 0.0
+
+func skill() -> bool:
+    # Scarlet Veil skill: consumes energy and reuses the attack pipeline as the
+    # combo-3 finisher, so hit detection, timing and i-frames stay identical.
+    if not can_skill():
+        return false
+    energy -= SKILL_COST
+    combo = 2
+    return attack()
+
+func can_ultimate() -> bool:
+    return enabled and energy >= ULT_COST and attack_timer <= 0.0 and dash_time <= 0.0 and attack_cooldown <= 0.0
+
+func ultimate() -> bool:
+    # CRIMSON BLOOM ultimate: full energy, combo-4 heavy strike + bloom VFX.
+    if not can_ultimate():
+        return false
+    energy = 0.0
+    combo = 3
+    return attack()
 
 func take_damage(amount: int) -> void:
     if not enabled or invulnerable > 0.0:

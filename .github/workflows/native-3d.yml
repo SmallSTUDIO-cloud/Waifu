@@ -30,7 +30,7 @@ jobs:
         run: |
           timeout 300 godot --headless --path native3d --editor --import --quit 2>&1 | tee /tmp/import.log
           rc_all=0
-          for t in smoke motion_pilot secondary_vfx secondary_physics quality_settings touch_camera wiggle_physics secondary_inertia enemy_combat ground_zero sprint_cycle; do
+          for t in smoke motion_pilot secondary_vfx secondary_physics quality_settings touch_camera wiggle_physics secondary_inertia enemy_combat ground_zero sprint_cycle scarlet_vfx; do
             timeout 180 godot --headless --path native3d --script res://tests/$t.gd > /tmp/$t.log 2>&1
             rc=$?
             echo "TEST $t rc=$rc" | tee -a /tmp/test-status.log
@@ -40,7 +40,7 @@ jobs:
               tail -30 /tmp/$t.log | tee -a /tmp/test-status.log
             fi
           done
-          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion_pilot.log /tmp/secondary_vfx.log /tmp/secondary_physics.log /tmp/quality_settings.log /tmp/touch_camera.log /tmp/wiggle_physics.log /tmp/secondary_inertia.log /tmp/enemy_combat.log /tmp/ground_zero.log /tmp/sprint_cycle.log 2>/dev/null | grep -v 'Parameter "t" is null' || true)
+          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion_pilot.log /tmp/secondary_vfx.log /tmp/secondary_physics.log /tmp/quality_settings.log /tmp/touch_camera.log /tmp/wiggle_physics.log /tmp/secondary_inertia.log /tmp/enemy_combat.log /tmp/ground_zero.log /tmp/sprint_cycle.log /tmp/scarlet_vfx.log 2>/dev/null | grep -v 'Parameter "t" is null' || true)
           if [ -n "$errors" ]; then
             echo "::error::$errors"
             rc_all=1
@@ -128,12 +128,20 @@ jobs:
           bash .github/scripts/capture_preview.sh sprint-three-quarter 60 30
           bash .github/scripts/capture_preview.sh sprint-accel 75 55
           bash .github/scripts/capture_preview.sh sprint-decel 75 55
+      - name: Previews F (scarlet combat VFX)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bash .github/scripts/capture_preview.sh attack 40 20
+          bash .github/scripts/capture_preview.sh dodge 30 15
+          bash .github/scripts/capture_preview.sh skill 60 30
+          bash .github/scripts/capture_preview.sh ultimate 75 38
       - name: Store diagnostics
         if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat /tmp/test-status.log /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/wiggle_physics.log /tmp/secondary_inertia.log /tmp/enemy_combat.log /tmp/ground_zero.log /tmp/sprint_cycle.log /tmp/render.log /tmp/perf.log 2>/dev/null > /tmp/diagnostics.txt || true
+          cat /tmp/test-status.log /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/wiggle_physics.log /tmp/secondary_inertia.log /tmp/enemy_combat.log /tmp/ground_zero.log /tmp/sprint_cycle.log /tmp/scarlet_vfx.log /tmp/render.log /tmp/perf.log 2>/dev/null > /tmp/diagnostics.txt || true
           python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/diagnostics.txt","rb").read()).decode(),"encoding":"base64"}))' > /tmp/diagnostics.json
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/diagnostics.json --jq .sha)
           echo "::warning title=Diagnostics::$sha"

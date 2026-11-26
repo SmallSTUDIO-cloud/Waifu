@@ -49,6 +49,7 @@ var camera_exclusions: Array[Control] = []
 var control_touches: Dictionary = {}
 var attack_button: Button
 var dodge_button: Button
+var skill_button: Button
 var pause_button: Button
 var profile_enabled: bool = false
 var profile_time: float = 0.0
@@ -94,7 +95,7 @@ func _ready() -> void:
     if player.motion_driver:
         player.motion_driver.use_formal_walk = not "--legacy-walk" in args
         player.motion_driver.use_sword_dash = not "--legacy-dash" in args
-    if "--smoke-play" in args or "--preview-move" in args or "--preview-sprint" in args or "--preview-sprint-accel" in args or "--preview-sprint-decel" in args or "--preview-sprint-front" in args or "--preview-sprint-side" in args or "--preview-sprint-rear" in args or "--preview-sprint-three-quarter" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args or "--preview-grip" in args:
+    if "--smoke-play" in args or "--preview-move" in args or "--preview-sprint" in args or "--preview-sprint-accel" in args or "--preview-sprint-decel" in args or "--preview-sprint-front" in args or "--preview-sprint-side" in args or "--preview-sprint-rear" in args or "--preview-sprint-three-quarter" in args or "--preview-attack" in args or "--preview-dodge" in args or "--preview-combo" in args or "--preview-impact" in args or "--preview-grip" in args or "--preview-skill" in args or "--preview-ultimate" in args:
         start_game()
     for side in ["front", "side", "rear"]:
         if "--preview-review-" + side in args:
@@ -151,6 +152,14 @@ func _ready() -> void:
             enemy.visible = false
     if "--preview-impact" in args:
         preview_mode = "impact"
+    if "--preview-skill" in args or "--preview-ultimate" in args:
+        preview_mode = "skill" if "--preview-skill" in args else "ultimate"
+        hud.visible = false
+        player.invulnerable = 99.0
+        player.energy = 100.0
+        for enemy in get_tree().get_nodes_in_group("enemies"):
+            enemy.enabled = false
+            enemy.visible = false
         var enemies = get_tree().get_nodes_in_group("enemies")
         for enemy in enemies: enemy.enabled = false
         if not enemies.is_empty(): enemies[0].global_position = player.global_position + Vector3(0.55, 0, -1.5)
@@ -214,6 +223,7 @@ func _control_at(pos: Vector2) -> Control:
 func _control_pressed(control: Control) -> void:
     if control == attack_button: _attack()
     elif control == dodge_button: _dodge()
+    elif control == skill_button: _skill_or_ultimate()
     elif control == pause_button: _pause()
 
 func _ui() -> void:
@@ -258,6 +268,17 @@ func _ui() -> void:
     dodge_button.offset_top = -120
     dodge_button.offset_bottom = -32
     hud.add_child(dodge_button)
+    # Scarlet Veil skill button (shown once enough energy is stored): skill at
+    # 50+, CRIMSON BLOOM ultimate at 100.
+    skill_button = _icon_button("res://assets/ui/icon_attack.png", 76.0)
+    skill_button.modulate = Color(1.0, 0.35, 0.45, 1.0)
+    skill_button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+    skill_button.offset_left = -148
+    skill_button.offset_right = -72
+    skill_button.offset_top = -256
+    skill_button.offset_bottom = -180
+    skill_button.visible = false
+    hud.add_child(skill_button)
     pause_button = _icon_button("res://assets/ui/icon_pause.png", 64.0)
     pause_button.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
     pause_button.offset_left = -92
@@ -265,7 +286,7 @@ func _ui() -> void:
     pause_button.offset_top = 24
     pause_button.offset_bottom = 88
     hud.add_child(pause_button)
-    camera_exclusions = [joystick, attack_button, dodge_button, pause_button]
+    camera_exclusions = [joystick, attack_button, dodge_button, skill_button, pause_button]
     hud.visible = false
     menu = Control.new()
     menu.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -484,10 +505,14 @@ func _physics_process(delta: float) -> void:
     if not preview_action_started and timer > 0.08:
         if preview_mode == "attack" or preview_mode == "combo" or preview_mode == "impact": _attack()
         if preview_mode == "dodge": _dodge()
+        if preview_mode == "skill": _skill()
+        if preview_mode == "ultimate": _ultimate()
         preview_action_started = true
     if preview_mode == "combo" and player.combo == 1 and timer > 0.54: _attack()
     if preview_mode == "combo" and player.combo == 2 and timer > 1.0: _attack()
     if preview_mode == "combo" and player.combo == 3 and timer > 1.46: _attack()
+    if skill_button:
+        skill_button.visible = playing and preview_mode == "" and player.energy >= player.SKILL_COST
     _update_camera(delta)
     if timer > 8.0: tip_label.visible = false
 
@@ -594,6 +619,7 @@ func _unhandled_key_input(event: InputEvent) -> void:
     if event is InputEventKey and event.pressed and not event.echo:
         if event.keycode == KEY_J: _attack()
         elif event.keycode == KEY_SPACE: _dodge()
+        elif event.keycode == KEY_E: _skill_or_ultimate()
         elif event.keycode == KEY_ESCAPE: _pause()
 
 func _attack() -> void:
@@ -630,6 +656,26 @@ func _swing_vfx(stage: int) -> void:
 func _dodge() -> void:
     if playing and player.dodge():
         _spawn_vfx("dodge", player.global_position + Vector3(0, 0.04, 0))
+        # Bloodline trail: directional streaks along the actual dash direction.
+        var streak = _spawn_vfx("dash", player.global_position + Vector3(0, 0.9, 0), 2)
+        streak.rotation.y = atan2(-player.dash_direction.x, -player.dash_direction.z)
+
+func _skill() -> void:
+    if playing and player.skill():
+        var v = _spawn_vfx("veil", player.global_position + Vector3(0, 1.0, 0), 3)
+        v.rotation.y = atan2(-player.facing.x, -player.facing.z)
+        camera_kick = maxf(camera_kick, 0.8)
+
+func _ultimate() -> void:
+    if playing and player.ultimate():
+        _spawn_vfx("bloom", player.global_position + Vector3(0, 0.6, 0), 4)
+        camera_kick = maxf(camera_kick, 1.2)
+
+func _skill_or_ultimate() -> void:
+    if player.can_ultimate():
+        _ultimate()
+    else:
+        _skill()
 
 func _hit_enemy(enemy: Node3D, damage: int) -> void:
     if is_instance_valid(enemy):

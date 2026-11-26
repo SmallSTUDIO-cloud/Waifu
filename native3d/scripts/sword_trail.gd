@@ -34,18 +34,20 @@ func update_trail(delta: float, grip: Node3D, active: bool) -> void:
     for i in range(samples.size() - 1):
         var a: Dictionary = samples[i]
         var b: Dictionary = samples[i + 1]
-        var alpha_a: float = 0.56 * (1.0 - clampf(a.age / SAMPLE_LIFE, 0.0, 1.0))
-        var alpha_b: float = 0.56 * (1.0 - clampf(b.age / SAMPLE_LIFE, 0.0, 1.0))
+        var alpha_a: float = 0.62 * (1.0 - clampf(a.age / SAMPLE_LIFE, 0.0, 1.0))
+        var alpha_b: float = 0.62 * (1.0 - clampf(b.age / SAMPLE_LIFE, 0.0, 1.0))
         var a_base = to_local(a.base)
         var a_tip = to_local(a.tip)
         var b_base = to_local(b.base)
         var b_tip = to_local(b.tip)
-        _vertex(a_base, Color(0.56, 0.20, 1.0, 0.0))
-        _vertex(a_tip, Color(0.92, 0.76, 1.0, alpha_a))
-        _vertex(b_base, Color(0.56, 0.20, 1.0, 0.0))
-        _vertex(a_tip, Color(0.92, 0.76, 1.0, alpha_a))
-        _vertex(b_tip, Color(0.92, 0.76, 1.0, alpha_b))
-        _vertex(b_base, Color(0.56, 0.20, 1.0, 0.0))
+        # Scarlet trail: translucent deep crimson at the guard, white-hot core
+        # (#FFF0F2) at the moving blade edge, scarlet mid glow.
+        _vertex(a_base, Color(0.474, 0.0, 0.094, 0.0))
+        _vertex(a_tip, Color(1.0, 0.216, 0.365, alpha_a * 0.85))
+        _vertex(b_base, Color(0.474, 0.0, 0.094, 0.0))
+        _vertex(a_tip, Color(1.0, 0.216, 0.365, alpha_a * 0.85))
+        _vertex(b_tip, Color(1.0, 0.216, 0.365, alpha_b * 0.85))
+        _vertex(b_base, Color(0.474, 0.0, 0.094, 0.0))
     ribbon.surface_end()
 
 func clear_trail() -> void:
