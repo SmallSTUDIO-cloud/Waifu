@@ -63,55 +63,68 @@ func run_test() -> void:
 		quit(1)
 		return
 
-	# Settle at idle first (droop under gravity, no wind).
+	# Settle at idle first (droop under gravity, no wind); record the rest
+	# direction so "swing forward on stop" can be measured RELATIVE to rest.
+	var rest_dots: Array = []
 	for i in range(90):
 		player._animate(1.0 / 60.0)
 		await process_frame
-	print("INERTIA: idle settled")
+		if i >= 70:
+			rest_dots.append(_dot(w, hair, player.facing))
+	var rest_dot = _avg(rest_dots)
+	var rest_swing = _swing(w, hair, player.skeleton)
+	print("INERTIA: idle settled rest_dot=", rest_dot, " rest_swing=", rest_swing)
 
 	# --- A. accelerate into a forward sprint (facing -Z, 5 m/s) ---
 	player.facing = Vector3(0, 0, -1)
 	player.velocity = Vector3(0, 0, -5.0)
 	player.speed_ratio = 1.0
 	player.sprinting = true
-	var early: Array = []
+	var first: Array = []
 	var steady: Array = []
 	var scarf_steady: Array = []
 	for i in range(90):
 		player._animate(1.0 / 60.0)
 		await process_frame
 		var d = _dot(w, hair, player.facing)
-		if i >= 2 and i < 10:
-			early.append(d)
+		if i >= 2 and i <= 4:
+			first.append(d)
 		if i >= 70:
 			steady.append(d)
 			scarf_steady.append(_dot(w, scarf, player.facing))
-	var d_early = _avg(early)
+	var d_first = _avg(first)
 	var d_steady = _avg(steady)
 	var d_scarf = _avg(scarf_steady)
-	print("INERTIA accel: hair early=", d_early, " steady=", d_steady, " scarf steady=", d_scarf)
+	print("INERTIA accel: hair first3=", d_first, " steady=", d_steady, " scarf steady=", d_scarf)
 	check(d_steady < -0.05, "hair does not trail at steady sprint (%.3f)" % d_steady)
 	check(d_scarf < 0.0, "scarf does not trail at steady sprint (%.3f)" % d_scarf)
-	check(d_early > d_steady + 0.01, "no acceleration lag (early %.3f vs steady %.3f)" % [d_early, d_steady])
+	# Inertia lag: the first frames after the start are still near the rest
+	# direction (NOT yet swung backward) — the body moves first, hair follows.
+	check(d_first > -0.05, "no acceleration lag: hair instantly trailing (first3 %.3f, rest %.3f)" % [d_first, rest_dot])
+	check(d_first > d_steady + 0.1, "hair deflection does not grow after accel (first3 %.3f vs steady %.3f)" % [d_first, d_steady])
 
-	# --- B. stop: momentum swing forward, then settle ---
+	# --- B. stop: momentum carries hair FORWARD past the rest direction,
+	# then it settles back to the droop (no freeze, no runaway oscillation) ---
 	player.velocity = Vector3.ZERO
 	player.speed_ratio = 0.0
 	player.sprinting = false
 	var max_after := -9.0
 	var final: Array = []
+	var final_swing := 0.0
 	for i in range(150):
 		player._animate(1.0 / 60.0)
 		await process_frame
 		var d = _dot(w, hair, player.facing)
-		if i >= 5 and i <= 70:
+		if i >= 5 and i <= 80:
 			max_after = maxf(max_after, d)
 		if i >= 130:
 			final.append(d)
+			final_swing = _swing(w, hair, player.skeleton)
 	var d_final = _avg(final)
-	print("INERTIA stop: max forward swing=", max_after, " final=", d_final)
-	check(max_after > 0.01, "hair did not swing forward on stop (%.3f)" % max_after)
-	check(d_final < 0.05, "hair stuck forward after settle (%.3f)" % d_final)
+	print("INERTIA stop: rest_dot=", rest_dot, " max forward swing=", max_after, " final=", d_final, " final_swing=", final_swing)
+	check(max_after > rest_dot + 0.2, "hair did not swing forward past rest on stop (%.3f vs rest %.3f)" % [max_after, rest_dot])
+	check(absf(d_final - rest_dot) < 0.15, "hair did not settle back near rest after stop (%.3f vs rest %.3f)" % [d_final, rest_dot])
+	check(final_swing < 0.25, "hair oscillating after stop (swing %.3f rad)" % final_swing)
 
 	# --- C. 90-degree turn while sprinting: re-trail along new direction ---
 	player.velocity = Vector3(0, 0, -5.0)
