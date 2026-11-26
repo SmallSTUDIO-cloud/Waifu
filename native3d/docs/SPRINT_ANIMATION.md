@@ -93,3 +93,16 @@ constant speed, and the chest scarf never moved at all. Root causes and fixes:
 - Android `version/code` bumped 3->4 so phones upgrade over the previous
   v0.4.1 install. The prerelease tag v0.4.1-native3d-test is re-created by the
   workflow; v0.4.0-native3d-test remains untouched.
+
+- Wind direction fix (device report: "hair goes forward while running"):
+  a new headless test in `tests/wiggle_physics.gd` measures the simulated
+  chain direction (`mod._global_direction`) while running and asserts hair
+  AND scarf tips oppose `facing` (trail backward). The wind force is
+  `-facing * (5.5*speed_ratio + 18*sprint_blend)` plus a small lift and
+  stride-frequency lateral sway; breeze strengthened, up-lift reduced so the
+  hair no longer whips over the face.
+- Scarf flutter: freq 3.8, zeta ~0.42, swing span 30 deg, force_scale 260 —
+  the chest scarf now lifts and puffs backward like fabric while running.
+- Verified visually in the `previews/new-sprint-*.gif` captures (run
+  45744140581 @ a9daaa7): side view shows hair/skirt streaming behind the
+  runner, front view shows the compact arms-down pump.
