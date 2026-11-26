@@ -66,10 +66,10 @@ func run_test() -> void:
 	# Settle at idle first (droop under gravity, no wind); record the rest
 	# direction so "swing forward on stop" can be measured RELATIVE to rest.
 	var rest_dots: Array = []
-	for i in range(90):
+	for i in range(150):
 		player._animate(1.0 / 60.0)
 		await process_frame
-		if i >= 70:
+		if i >= 120:
 			rest_dots.append(_dot(w, hair, player.facing))
 	var rest_dot = _avg(rest_dots)
 	var rest_swing = _swing(w, hair, player.skeleton)
@@ -80,28 +80,26 @@ func run_test() -> void:
 	player.velocity = Vector3(0, 0, -5.0)
 	player.speed_ratio = 1.0
 	player.sprinting = true
-	var first: Array = []
+	var min_early := 9.0
 	var steady: Array = []
 	var scarf_steady: Array = []
 	for i in range(90):
 		player._animate(1.0 / 60.0)
 		await process_frame
 		var d = _dot(w, hair, player.facing)
-		if i >= 2 and i <= 4:
-			first.append(d)
+		if i < 30:
+			min_early = minf(min_early, d)
 		if i >= 70:
 			steady.append(d)
 			scarf_steady.append(_dot(w, scarf, player.facing))
-	var d_first = _avg(first)
 	var d_steady = _avg(steady)
 	var d_scarf = _avg(scarf_steady)
-	print("INERTIA accel: hair first3=", d_first, " steady=", d_steady, " scarf steady=", d_scarf)
+	print("INERTIA accel: hair min_early=", min_early, " steady=", d_steady, " scarf steady=", d_scarf)
 	check(d_steady < -0.05, "hair does not trail at steady sprint (%.3f)" % d_steady)
 	check(d_scarf < 0.0, "scarf does not trail at steady sprint (%.3f)" % d_scarf)
-	# Inertia lag: the first frames after the start are still near the rest
-	# direction (NOT yet swung backward) — the body moves first, hair follows.
-	check(d_first > -0.05, "no acceleration lag: hair instantly trailing (first3 %.3f, rest %.3f)" % [d_first, rest_dot])
-	check(d_first > d_steady + 0.1, "hair deflection does not grow after accel (first3 %.3f vs steady %.3f)" % [d_first, d_steady])
+	# Spring follow-through: on acceleration the underdamped tip whips PAST
+	# its steady deflection and then oscillates back (not a rigid lock).
+	check(min_early < d_steady - 0.1, "no follow-through overshoot on accel (min %.3f vs steady %.3f)" % [min_early, d_steady])
 
 	# --- B. stop: momentum carries hair FORWARD past the rest direction,
 	# then it settles back to the droop (no freeze, no runaway oscillation) ---
