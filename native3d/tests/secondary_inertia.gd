@@ -41,16 +41,18 @@ func _avg(values: Array) -> float:
 	return s / maxf(1.0, float(values.size()))
 
 func run_test() -> void:
+	print("INERTIA: start")
 	var scene = load("res://main.tscn").instantiate()
 	root.add_child(scene)
 	await process_frame
 	var player = scene.player
 	var w = player.wiggle
+	print("INERTIA: modifiers=", w.modifiers.size() if w != null else -1)
 	check(w != null and w.modifiers.size() > 0, "no wiggle modifiers")
 	var hair = _deepest(w, "hair")
 	var scarf = _deepest(w, "scarf")
 	check(hair >= 0 and scarf >= 0, "hair/scarf chain not found")
-	if hair < 0 or scarf < 0:
+	if w == null or hair < 0 or scarf < 0:
 		quit(1)
 		return
 
@@ -58,6 +60,7 @@ func run_test() -> void:
 	for i in range(90):
 		player._animate(1.0 / 60.0)
 		await process_frame
+	print("INERTIA: idle settled")
 
 	# --- A. accelerate into a forward sprint (facing -Z, 5 m/s) ---
 	player.facing = Vector3(0, 0, -1)

@@ -26,26 +26,26 @@ jobs:
             chmod +x "$HOME/.local/bin/godot"
           fi
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: Import and smoke test
+      - name: Import and run headless tests
         run: |
-          set -o pipefail
           timeout 300 godot --headless --path native3d --editor --import --quit 2>&1 | tee /tmp/import.log
-          timeout 180 godot --headless --path native3d --script res://tests/smoke.gd 2>&1 | tee /tmp/smoke.log
-          timeout 180 godot --headless --path native3d --script res://tests/motion_pilot.gd 2>&1 | tee /tmp/motion-pilot.log
-          timeout 180 godot --headless --path native3d --script res://tests/secondary_vfx.gd 2>&1 | tee /tmp/secondary-vfx.log
-          timeout 180 godot --headless --path native3d --script res://tests/secondary_physics.gd 2>&1 | tee /tmp/secondary-physics.log
-          timeout 180 godot --headless --path native3d --script res://tests/quality_settings.gd 2>&1 | tee /tmp/quality-settings.log
-          timeout 180 godot --headless --path native3d --script res://tests/touch_camera.gd 2>&1 | tee /tmp/touch-camera.log
-          timeout 180 godot --headless --path native3d --script res://tests/wiggle_physics.gd 2>&1 | tee /tmp/wiggle.log
-          timeout 180 godot --headless --path native3d --script res://tests/secondary_inertia.gd 2>&1 | tee /tmp/secondary-inertia.log
-          timeout 180 godot --headless --path native3d --script res://tests/enemy_combat.gd 2>&1 | tee /tmp/enemy-combat.log
-          timeout 180 godot --headless --path native3d --script res://tests/ground_zero.gd 2>&1 | tee /tmp/ground-zero.log
-          timeout 180 godot --headless --path native3d --script res://tests/sprint_cycle.gd 2>&1 | tee /tmp/sprint-cycle.log
-          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/wiggle.log /tmp/enemy-combat.log /tmp/ground-zero.log /tmp/sprint-cycle.log | grep -v 'Parameter "t" is null' || true)
+          rc_all=0
+          for t in smoke motion_pilot secondary_vfx secondary_physics quality_settings touch_camera wiggle_physics secondary_inertia enemy_combat ground_zero sprint_cycle; do
+            timeout 180 godot --headless --path native3d --script res://tests/$t.gd > /tmp/$t.log 2>&1
+            rc=$?
+            echo "TEST $t rc=$rc" | tee -a /tmp/test-status.log
+            if [ $rc -ne 0 ]; then
+              rc_all=1
+              echo "--- tail of /tmp/$t.log ---" | tee -a /tmp/test-status.log
+              tail -30 /tmp/$t.log | tee -a /tmp/test-status.log
+            fi
+          done
+          errors=$(grep -Eh 'SCRIPT ERROR|^ERROR:' /tmp/import.log /tmp/smoke.log /tmp/motion_pilot.log /tmp/secondary_vfx.log /tmp/secondary_physics.log /tmp/quality_settings.log /tmp/touch_camera.log /tmp/wiggle_physics.log /tmp/secondary_inertia.log /tmp/enemy_combat.log /tmp/ground_zero.log /tmp/sprint_cycle.log 2>/dev/null | grep -v 'Parameter "t" is null' || true)
           if [ -n "$errors" ]; then
             echo "::error::$errors"
-            exit 1
+            rc_all=1
           fi
+          exit $rc_all
       - name: Capture software-rendered frame
         run: |
           mkdir -p /tmp/frames
@@ -129,7 +129,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cat /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/wiggle.log /tmp/enemy-combat.log /tmp/ground-zero.log /tmp/sprint-cycle.log /tmp/render.log /tmp/perf.log 2>/dev/null > /tmp/diagnostics.txt || true
+          cat /tmp/test-status.log /tmp/import.log /tmp/smoke.log /tmp/motion-pilot.log /tmp/secondary-vfx.log /tmp/secondary-physics.log /tmp/quality-settings.log /tmp/touch-camera.log /tmp/wiggle_physics.log /tmp/secondary_inertia.log /tmp/enemy_combat.log /tmp/ground_zero.log /tmp/sprint_cycle.log /tmp/render.log /tmp/perf.log 2>/dev/null > /tmp/diagnostics.txt || true
           python3 -c 'import base64,json; print(json.dumps({"content":base64.b64encode(open("/tmp/diagnostics.txt","rb").read()).decode(),"encoding":"base64"}))' > /tmp/diagnostics.json
           sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/diagnostics.json --jq .sha)
           echo "::warning title=Diagnostics::$sha"
