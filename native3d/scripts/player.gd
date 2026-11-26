@@ -511,12 +511,15 @@ func _animate(delta: float) -> void:
     if wiggle:
         var wind_target = Vector3.ZERO
         if facing.length_squared() > 0.0:
-            var back = Vector3(-facing.x, 0, -facing.z).normalized()
+            # NOTE: the wiggle spring torque inverts the force direction, so to make
+            # cloth trail BEHIND the runner the wind force must point along
+            # +facing (verified by the wind-direction test in tests/wiggle_physics.gd).
+            var fwd = Vector3(facing.x, 0, facing.z).normalized()
             var right = Vector3(-facing.z, 0, facing.x)
             var moving = speed_ratio
             var breeze = 4.5 * moving + 15.0 * sprint_blend
             var sway = 2.6 * moving + 5.0 * sprint_blend
-            wind_target = back * breeze + Vector3(0, 0.25 * moving + 0.35 * sprint_blend, 0) + right * sin(gait_phase) * sway
+            wind_target = fwd * breeze + Vector3(0, 0.25 * moving + 0.35 * sprint_blend, 0) + right * sin(gait_phase) * sway
         wiggle.set_wind(wiggle.wind.lerp(wind_target, 1.0 - exp(-delta * 6.0)))
     else:
         var gait: float = sin(gait_phase)

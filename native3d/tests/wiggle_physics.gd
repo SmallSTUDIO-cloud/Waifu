@@ -62,6 +62,33 @@ func run_test() -> void:
 	check(settled < max_swing, "hair did not settle after motion (%.4f vs %.4f)" % [settled, max_swing])
 	check(settled < deg_to_rad(45.0) + 0.05, "hair unbounded after settle")
 
+	# Wind direction: while running forward, hair AND scarf chain tips must
+	# trail BEHIND the runner (chain direction opposes facing), never blow
+	# forward into the face.
+	player.facing = Vector3(0, 0, -1)
+	player.velocity = Vector3(0, 0, -5.0)
+	player.speed_ratio = 1.0
+	player.sprinting = true
+	var deepest_scarf = -1
+	var deepest_scarf_depth = -1
+	for entry in w.modifiers:
+		if entry.kind == "scarf" and entry.depth > deepest_scarf_depth:
+			deepest_scarf_depth = entry.depth
+			deepest_scarf = entry.bone
+	check(deepest_scarf >= 0, "no scarf chain found for wind test")
+	for i in range(90):
+		player._animate(1.0 / 60.0)
+		await process_frame
+	for bone_idx in [deepest_hair, deepest_scarf]:
+		for entry in w.modifiers:
+			if entry.bone == bone_idx:
+				var chain_dir: Vector3 = entry.mod._global_direction
+				check(chain_dir.dot(player.facing) < 0.0, "chain blows FORWARD while running, dot=%.3f" % chain_dir.dot(player.facing))
+	player.sprinting = false
+	player.velocity = Vector3.ZERO
+	player.speed_ratio = 0.0
+	player._animate(1.0 / 60.0)
+
 	# Tuning invariants: damping is derived from frequency via a damping
 	# ratio; hair must be underdamped, cloth near-critical; tips looser than roots.
 	var hair_root = null

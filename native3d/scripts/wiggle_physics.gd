@@ -83,15 +83,16 @@ func _add_bone(index: int, kind: String, depth: int) -> void:
 		p.linear_scale = 460.0
 		p.force_scale = 190.0
 		if kind == "scarf":
-			# Chest scarf panels: soft but tight span so they never clip the
-			# chest or the sword arm.
-			var sfreq = 4.4 * (1.0 - 0.25 * df) * wobble
+			# Chest scarf panels: soft, a little underdamped so they flutter,
+			# with enough span to visibly lift and puff backward while running,
+			# but still never clip the chest or the sword arm.
+			var sfreq = 3.8 * (1.0 - 0.25 * df) * wobble
 			p.spring_freq = sfreq
-			p.angular_damp = 3.4 * sfreq # zeta ~= 0.54
+			p.angular_damp = 2.65 * sfreq # zeta ~= 0.42, lively flutter
 			p.gravity = Vector3(0, -5.5, 0)
-			p.swing_span = deg_to_rad(24.0)
-			p.linear_scale = 400.0
-			p.force_scale = 200.0
+			p.swing_span = deg_to_rad(30.0)
+			p.linear_scale = 430.0
+			p.force_scale = 260.0
 	mod.properties = p
 	mod.influence = 0.0
 	# SkeletonModifier3D runs in child order, so parents must be added first;
