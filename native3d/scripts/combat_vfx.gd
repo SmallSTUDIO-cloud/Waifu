@@ -160,7 +160,7 @@ func _add_particles() -> void:
     m.height = 0.028
     m.radial_segments = 6
     m.rings = 3
-    p.draw_pass_1 = m
+    p.mesh = m
     var mat := StandardMaterial3D.new()
     mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
     mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA

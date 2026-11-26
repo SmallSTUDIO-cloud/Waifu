@@ -75,9 +75,11 @@ func run_test() -> void:
 	check(player.aura_material != null and player.aura_material.emission.r > 0.9 and player.aura_material.emission.g < 0.45, "aura not scarlet")
 	await process_frame
 	if attached != null:
-		var grip_y = player.sword_grip.global_position.y
-		var blade_y = attached.global_position.y
-		check(blade_y < grip_y - 0.3, "blade does not extend downward (-Y): dy=%.3f" % (blade_y - grip_y))
+		# The GLB root sits at the grip origin; check the mesh AABB instead:
+		# the blade must extend along local -Y (tip near y=-0.885).
+		var aabb = attached.get_aabb()
+		print("SCARLET blade aabb min=", aabb.position, " size=", aabb.size)
+		check(aabb.position.y < -0.5, "blade does not extend along -Y (aabb min y=%.3f)" % aabb.position.y)
 
 	# --- palette of spawned slash ---
 	scene._swing_vfx(1)
@@ -104,13 +106,14 @@ func run_test() -> void:
 		await process_frame
 	check(active_effects().size() == 0, "effects not cleaned up after lifetime (%d left)" % active_effects().size())
 
-	# --- REDUCED quality: no particles, fewer verts ---
+	# --- REDUCED quality: no particles, fewer verts (compare slash to slash) ---
 	scene.quality_settings.effects = 0
 	scene._swing_vfx(2)
-	var reduced = active_effects()
-	check(reduced.size() >= 1, "no effect at REDUCED")
-	if reduced.size() >= 1:
-		var e0 = reduced[reduced.size() - 1]
+	var e0 = null
+	for e in active_effects():
+		if e.kind == "slash": e0 = e
+	check(e0 != null, "no slash effect at REDUCED")
+	if e0 != null:
 		check(e0.effect_quality == 0, "effect quality not 0 at REDUCED")
 		var kids := 0
 		for c in e0.get_children():
@@ -121,10 +124,14 @@ func run_test() -> void:
 		await process_frame
 		scene.quality_settings.effects = 1
 		scene._swing_vfx(2)
-		var e1 = active_effects()[active_effects().size() - 1]
-		var v1 = e1.shape.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX].size()
-		print("SCARLET verts reduced=", v0, " full=", v1)
-		check(v1 > v0, "FULL should add petal geometry over REDUCED")
+		var e1 = null
+		for e in active_effects():
+			if e.kind == "slash": e1 = e
+		check(e1 != null, "no slash effect at FULL")
+		if e1 != null:
+			var v1 = e1.shape.mesh.surface_get_arrays(0)[Mesh.ARRAY_VERTEX].size()
+			print("SCARLET slash verts reduced=", v0, " full=", v1)
+			check(v1 > v0, "FULL should add petal geometry over REDUCED")
 		for e in active_effects(): e.queue_free()
 		await process_frame
 
@@ -152,6 +159,7 @@ func run_test() -> void:
 	check(kinds.has("veil"), "no veil effect spawned")
 	player.attack_timer = 0.0
 	player.attack_cooldown = 0.0
+	player.energy = 100.0
 	for e in active_effects(): e.queue_free()
 	await process_frame
 	scene._ultimate()
