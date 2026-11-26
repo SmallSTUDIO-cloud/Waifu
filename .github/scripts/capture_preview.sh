@@ -18,7 +18,8 @@ shot=$(find "/tmp/preview-$action" -name '*.png' | sort | sed -n "${frame_number
 test -n "$shot"
 python3 -c 'import base64,json,sys; print(json.dumps({"content":base64.b64encode(open(sys.argv[1],"rb").read()).decode(),"encoding":"base64"}))' "$shot" > /tmp/preview-blob.json
 sha=$(gh api "repos/$GITHUB_REPOSITORY/git/blobs" --method POST --input /tmp/preview-blob.json --jq .sha)
-echo "::warning title=Preview $action::$sha"
+# Still PNG is recorded in the manifest only; emitting a second annotation per
+# action would exceed the 50-annotation check-run cap and drop later previews.
 python3 - "$action" <<'PYCODE'
 import glob, sys
 from PIL import Image
