@@ -45,6 +45,8 @@ var pose_blend: float = 1.0
 var gait_phase: float = 0.0
 var gait_rate: float = 0.0
 var turn_lean: float = 0.0
+var last_horiz: Vector2 = Vector2.ZERO
+var accel_lean: float = 0.0
 var attack_buffered: bool = false
 var dash_direction: Vector3 = Vector3.FORWARD
 var sword_grip: Node3D
@@ -369,6 +371,14 @@ func _physics_process(delta: float) -> void:
                 if offset.length() < 2.0 and (offset.length() < 0.7 or facing.dot(offset.normalized()) > 0.12):
                     hit_enemy.emit(enemy, 2 if combo == 4 else 1)
                     energy = minf(100.0, energy + 20.0)
+    # Forward acceleration measured from real velocity change; feeds the
+    # accel/decel body lean and the sword inertia wobble (momentum reads).
+    var horiz_now := Vector2(velocity.x, velocity.z)
+    var accel_f := 0.0
+    if delta > 0.0:
+        accel_f = clampf((horiz_now - last_horiz).dot(Vector2(facing.x, facing.z)) / delta, -30.0, 30.0)
+    last_horiz = horiz_now
+    accel_lean = lerpf(accel_lean, clampf(accel_f * 0.006, -0.08, 0.12), 1.0 - exp(-delta * 6.0))
     _animate(delta)
     if sword_trail:
         var progress = 1.0 - attack_timer / ATTACK_DURATION
@@ -465,14 +475,15 @@ func _sprint_pose(phase: float) -> void:
     _pose_sprint("J_Bip_R_LowerLeg", Vector3(-knee_r, 0, 0))
     _pose_sprint("J_Bip_L_Foot", Vector3(foot_l, 0, 0))
     _pose_sprint("J_Bip_R_Foot", Vector3(foot_r, 0, 0))
-    var arm := 0.46 * c
+    var arm := 0.50 * c
     _pose_sprint("J_Bip_L_UpperArm", Vector3(0.10 - arm, 0, 1.10 + 0.05 * s))
     _pose_sprint("J_Bip_R_UpperArm", Vector3(0.10 + arm, 0, -1.05 - 0.05 * s))
     _pose_sprint("J_Bip_L_LowerArm", Vector3(1.25 + 0.10 * s, 0, 0.15))
     _pose_sprint("J_Bip_R_LowerArm", Vector3(1.25 - 0.10 * s, 0, -0.15))
-    _pose_sprint("J_Bip_C_Hips", Vector3(0.30, -0.12 * c, 0.07 * s))
-    _pose_sprint("J_Bip_C_Spine", Vector3(-0.20, 0.06 * s, 0))
+    _pose_sprint("J_Bip_C_Hips", Vector3(0.34, -0.12 * c, 0.07 * s))
+    _pose_sprint("J_Bip_C_Spine", Vector3(-0.22 + 0.04 * s, 0.06 * s, 0))
     _pose_sprint("J_Bip_C_Chest", Vector3(-0.16, 0.10 * c, 0))
+    _pose_sprint("J_Bip_C_UpperChest", Vector3(-0.10, -0.08 * c, 0.0))
     _pose_sprint("J_Bip_C_Head", Vector3(0.12, -0.06 * c, 0.03 * s))
 
 
@@ -495,7 +506,7 @@ func _animate(delta: float) -> void:
         var dash_progress = 1.0 - dash_time / DASH_DURATION if dash_time > 0.0 else -1.0
         motion_driver.update(delta, speed_ratio, attack_progress, dash_progress, combo)
         var dash_weight = sin(PI * dash_progress) if dash_progress >= 0.0 else 0.0
-        model_root.rotation.x = lerpf(model_root.rotation.x, -0.22 * dash_weight - 0.16 * sprint_blend, pose_blend)
+        model_root.rotation.x = lerpf(model_root.rotation.x, -0.22 * dash_weight - 0.20 * sprint_blend - accel_lean, pose_blend)
         model_root.rotation.z = lerpf(model_root.rotation.z, turn_lean * 0.5, pose_blend)
         # Two vertical CoM bobs per stride (one per footfall) so the center of
         # mass reads as weight, not gliding.
@@ -539,7 +550,7 @@ func _animate(delta: float) -> void:
         var dash: float = sin(PI * (1.0 - dash_time / DASH_DURATION)) if dash_time > 0.0 else 0.0
         var run: float = speed_ratio * (1.0 - dash * 0.5)
         model_root.position.y = 0.018 * (1.0 - cos(gait_phase * 2.0)) * run - 0.19 * dash
-        model_root.rotation.x = lerpf(model_root.rotation.x, -0.42 * dash - 0.08 * run, pose_blend)
+        model_root.rotation.x = lerpf(model_root.rotation.x, -0.42 * dash - 0.08 * run - accel_lean * 0.8, pose_blend)
         model_root.rotation.z = lerpf(model_root.rotation.z, turn_lean, pose_blend)
         _pose("J_Bip_C_Hips", Vector3(0.08 * run + 0.34 * dash, swing * 0.20 * side + stride * 0.075, stride * 0.05))
         _pose("J_Bip_C_Spine", Vector3(-0.10 * run + 0.20 * dash - arm_raise * 0.08, -swing * 0.45 * side, -stride * 0.025 - swing * 0.08))
@@ -563,7 +574,9 @@ func _animate(delta: float) -> void:
     # carries it clear of the chest scarf instead of through it.
     if sword_grip:
         var walk = speed_ratio
-        var grip_target = Vector3(grip_base_rotation.x - 6.0 * walk, grip_base_rotation.y + 4.0 * walk, grip_base_rotation.z + 30.0 * walk + 12.0 * sprint_blend)
+        # Blade tilts clear of scarf/sleeve/legs while moving, plus a small
+        # inertia wobble: pitch follows forward acceleration, yaw turn lean.
+        var grip_target = Vector3(grip_base_rotation.x - 6.0 * walk - accel_lean * 45.0, grip_base_rotation.y + 4.0 * walk + turn_lean * 25.0, grip_base_rotation.z + 30.0 * walk + 12.0 * sprint_blend)
         sword_grip.rotation_degrees = sword_grip.rotation_degrees.lerp(grip_target, 1.0 - exp(-delta * 14.0))
     # Aura breathes at idle and flares during the swing.
     if aura_material and aura_mesh:
