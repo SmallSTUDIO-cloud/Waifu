@@ -54,3 +54,79 @@ so they are freed with them and never hit the effect budget/group counts.
 cleanup tests → 7. gameplay validation captures + perf numbers.
 
 (Sections below are filled in as phases complete.)
+
+## Phase 2 — CRIMSON BLADE asset (commits 520e41b)
+- `native3d/tools/make_crimson_blade.py` (pure-Python glTF 2.0 writer) emits
+  **`native3d/assets/crimson_blade.glb`**: 454 triangles, 6 materials, 41 KB.
+  Parts: tapered octagonal-section blade (dark metal, edge-metal tip), dark
+  fuller grooves + **luminous scarlet energy channel** (`ScarletChannel`,
+  emissive #FF1744 ×2.6 via KHR_materials_emissive_strength), angular hex
+  crossguard with two crimson crystal octahedra, wrapped leather grip with
+  metal rings, pommel + gem, and a double-sided red cloth ornament.
+- Integrated in `player.gd::_attach_sword()`: the GLB instantiates under the
+  existing `BoneAttachment3D` grip on `J_Bip_R_Hand` (same origin offset and
+  base rotation, blade along local −Y, tip ≈ −0.885 — drop-in for the old
+  procedural sword, now deleted). Aura shell recolored scarlet
+  (emission #FF365D) and slimmed; still pulses with the attack in `_animate`.
+
+## Phases 3–5 — combat VFX identity (commit f7055d6)
+- `combat_vfx.gd`: palette constants `DEEP #790018 / SCARLET #FF1744 /
+  BRIGHT #FF365D / HILITE #FF8295 / CORE #FFF0F2`; all existing kinds
+  (slash/echo/finisher/cleave/impact/dodge) recolored to layered crimson
+  bands with a white-hot core edge. New kinds:
+  - `dash` — bloodline streaks along the actual dash direction (spawned in
+    `world._dodge()`, yaw-aligned to `dash_direction`).
+  - `veil` — Scarlet Veil skill: two segmented rune rings + orbiting streaks
+    + core glow, 0.9 s, spins and swells.
+  - `bloom` — CRIMSON BLOOM ultimate: 8 petal-shaped energy segments forming
+    a flower + expanding ring + core flash + shard fragments, 1.25 s.
+- Each effect may parent a tiny one-shot `CPUParticles3D` burst (8–14
+  scarlet emissive spheres, lifetime 0.38 s) at FULL quality — children of
+  the effect node, so cleanup is automatic and the effect budget/group
+  counts are unchanged. REDUCED (effects=0) drops particles and petal
+  layers (test-asserted: fewer vertices, no particle child).
+- `sword_trail.gd`: ribbon recolored — deep crimson at the guard fading to
+  bright scarlet/white-hot at the moving blade edge; still samples the real
+  grip transform (base −0.02, tip −0.86), 12 samples × 0.14 s.
+- Skill/ultimate wiring (no combat-mechanics change): `player.skill()`
+  (50 energy) and `player.ultimate()` (100 energy) reuse the existing
+  `attack()` pipeline as combo-3/4 strikes — same hit detection, timing,
+  i-frames. `world._skill()/_ultimate()` spawn veil/bloom + camera kick;
+  new red-tinted skill HUD button (visible at ≥50 energy; ultimate at 100)
+  and `KEY_E`. Preview harness: `--preview-skill`, `--preview-ultimate`.
+
+## Phase 6 — quality & cleanup
+- Existing `settings.gd` `effects` 0/1 (REDUCED/FULL) routes everything above;
+  effect budget 6/12 in `_spawn_vfx`; all effects `queue_free()` after their
+  lifetime; particles die with their parent. No dynamic lights, no
+  post-processing, `cast_shadow OFF`, additive unshaded materials only.
+
+## Phase 7 — validation
+- `tests/scarlet_vfx.gd` (registered in the CI loop): GLB loads (454 tris,
+  scarlet emissive present), attached under the right-hand grip, blade AABB
+  extends along −Y, slash vertex colors red-dominant, budget ≤12, full cleanup
+  after lifetimes, REDUCED < FULL geometry with no particles, trail ribbon
+  crimson, skill consumes 50 energy + spawns veil + starts attack, ultimate
+  drains to 0 + spawns bloom, insufficient energy does nothing, dodge spawns
+  the directional streak.
+- Green runs: `45759316924` @ `ed8d50a` and `45760792712` @ `e0ec713` —
+  **11/11 headless suites pass** (incl. all pre-existing animation/combat/
+  physics tests).
+- Gameplay captures (check-run annotations / preview manifest of run
+  `45762528623` era): `previews/scarlet-attack.gif`, `scarlet-dodge.gif`,
+  `scarlet-combo.gif`, `scarlet-skill.gif`, `scarlet-ultimate.gif` (+ the
+  sprint set from the animation rework).
+- Perf (CI software renderer llvmpipe — **not** device numbers): plaza view
+  fps=10, process 334 ms, 650 draw calls, 95.8k primitives, video mem 85 MB;
+  center view fps=17, 62.5 ms, 408 draw calls, 56.6k primitives. Static mem
+  37.5 MB. Effects add ≤ a few dozen bounded triangles + ≤14 CPU particles
+  per swing and are lifetime-capped; no per-frame allocations in the hot path.
+
+## Remaining limitations
+- No physical Galaxy M21 measurement in CI; device FPS must be profiled on
+  the phone (the in-game `--perf-report` / profiler markers are unchanged).
+- Skill/ultimate reuse combo-3/4 attack animations (by design, to avoid
+  touching combat mechanics); their VFX (veil rings / bloom petals) are the
+  distinct signature visuals.
+- The HUD gains one button (skill, red-tinted attack icon) — existing HUD
+  elements are unchanged.
