@@ -116,3 +116,41 @@ was ever guessed or blindly reversed.
 | Scarf not fabric-like | scarf used cloth tuning (overdamped, stiff) | dedicated scarf tuning: freq 3.8, zeta≈0.42, span 30°, force_scale 260 (`dea9abb`) |
 | Sword feels disconnected | rigid grip, clipped scarf while running | BoneAttachment grip, curled fingers, outward tilt while moving + inertia wobble (this branch) |
 | No weight/momentum | flat root height, upright torso | 2-per-stride CoM bob, sprint lean, accel/decel lean from real acceleration (this branch) |
+
+## 7. Master rework round 2 (commits ee8a8ee..52aeda2)
+
+Changes in `player.gd` / `world.gd` / CI, all verified by the green run
+`45752760018` @ `52aeda2` (10/10 headless suites):
+
+- **Velocity-aware wind**: the cloth/hair breeze now opposes the *actual
+  horizontal velocity* while moving (`-velocity.normalized()`), falling back to
+  `-facing` — backward and strafing runs trail correctly, and sharp turns re-
+  trail along the new direction. Breeze strengthened to `7*speed + 26*sprint`
+  so the deeper torso lean cannot let the hair equilibrium drift forward.
+- **Momentum lean**: `accel_lean` is measured from real velocity change
+  (clamped ±30 m/s²) and adds forward lean on acceleration / slight backward
+  lean on deceleration, on top of the sprint lean (-0.16 -> -0.20).
+- **Sprint biomechanics**: bigger arm pump (0.46 -> 0.50 rad), deeper hip
+  pitch (0.30 -> 0.34), spine pitch coupled to the stride, and a new
+  `J_Bip_C_UpperChest` counter-rotation so the shoulder line opposes the pelvis.
+  `tests/sprint_cycle.gd` still asserts: arms adducted down, elbows bent
+  0.95-1.50 rad, arm/leg opposition, seamless loop, J_Bip-only writes.
+- **Sword inertia**: the grip gets a small pitch wobble from `accel_lean` and a
+  yaw wobble from `turn_lean` on top of the existing move tilt — the blade now
+  lags the hand slightly instead of being rigid; attachment unchanged
+  (BoneAttachment3D on `J_Bip_R_Hand`).
+- **New test `tests/secondary_inertia.gd`** (measured @ 52aeda2):
+  accel from idle -> hair tip whips to dot=-0.99 then settles at -0.13
+  (follow-through overshoot, trails backward); stop -> swings forward to
+  dot=+0.96 past rest (+0.26) then settles (swing 0.027 rad, no freeze);
+  90° turn while sprinting -> hair -0.32 / scarf -0.55 relative to the NEW
+  facing (re-trails correctly); scarf trails at steady sprint (-0.21).
+- **CI**: headless tests now run in a loop with per-test exit codes and log
+  tails in the Diagnostics annotation (one failure no longer hides the rest);
+  new `sprint-three-quarter` capture (front-right 3/4 view); preview steps
+  split so the 10-annotation/step cap no longer drops `sprint-decel`.
+- **Captures** (check-run annotations of run 45752760018, kept in
+  `previews/`): `new-sprint-front/side/rear/three-quarter.gif`,
+  `new-sprint-accel.gif`, `new-sprint-decel.gif`, `new-authored-sprint.gif`,
+  plus `old-authored-sprint.gif` (pre-rework `5b1f953`) and the stacked
+  `comparison-sprint.gif` (before top / after bottom).
